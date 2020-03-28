@@ -8,6 +8,7 @@ import re
 import socket
 import stat
 import string
+import sys
 
 from pwnlib.context import context
 from pwnlib.log import getLogger
@@ -153,7 +154,7 @@ def which(name, all = False):
     if os.path.sep in name:
         return name
 
-    isroot = os.getuid() == 0
+    isroot = False if sys.platform == 'win32' else (os.getuid() == 0)
     out = set()
     try:
         path = os.environ['PATH']

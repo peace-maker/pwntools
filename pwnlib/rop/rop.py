@@ -285,6 +285,7 @@ import tempfile
 
 from pwnlib import abi
 from pwnlib import constants
+from pwnlib.binary import Binary
 from pwnlib.context import LocalContext
 from pwnlib.context import context
 from pwnlib.elf import ELF
@@ -501,10 +502,10 @@ class ROP(object):
         import ropgadget
 
         # Permit singular ROP(elf) vs ROP([elf])
-        if isinstance(elfs, ELF):
+        if isinstance(elfs, Binary):
             elfs = [elfs]
         elif isinstance(elfs, (bytes, six.text_type)):
-            elfs = [ELF(elfs)]
+            elfs = [Binary.from_path(elfs)]
 
         #: List of individual ROP gadgets, ROP calls, SROP frames, etc.
         #: This is intended to be the highest-level abstraction that we can muster.
@@ -1063,7 +1064,7 @@ class ROP(object):
         if not os.path.exists(cachedir):
             os.mkdir(cachedir)
 
-        if isinstance(files, ELF):
+        if isinstance(files, Binary):
             files = [files]
 
         sha256 = hashlib.sha256()

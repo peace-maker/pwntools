@@ -781,10 +781,10 @@ class ContextType(object):
 
         """
         # Cyclic imports... sorry Idolf.
-        from pwnlib.elf     import ELF
+        from pwnlib.binary    import Binary
 
-        if not isinstance(binary, ELF):
-            binary = ELF(binary)
+        if not isinstance(binary, Binary):
+            binary = Binary.from_path(binary)
 
         self.arch   = binary.arch
         self.bits   = binary.bits

@@ -6,6 +6,7 @@ import argparse
 import sys
 
 from pwn import *
+from pwnlib.binary import Binary
 from pwnlib.commandline import common
 
 parser = common.parser_commands.add_parser(
@@ -35,7 +36,10 @@ def main(args):
         return
 
     for f in files:
-        e = ELF(f.name)
+        try:
+            e = Binary.from_path(f.name)
+        except:
+            log.warn('Invalid file: %s', f.name)
 
 if __name__ == '__main__':
     pwnlib.commandline.common.main(__file__)

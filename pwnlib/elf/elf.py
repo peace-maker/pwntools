@@ -70,6 +70,7 @@ import intervaltree
 from pwnlib import adb
 from pwnlib import qemu
 from pwnlib.asm import *
+from pwnlib.binary import Binary, dotdict
 from pwnlib.context import LocalContext
 from pwnlib.context import context
 from pwnlib.elf.config import kernel_configuration
@@ -131,40 +132,7 @@ def load(*args, **kwargs):
     """Compatibility wrapper for pwntools v1"""
     return ELF(*args, **kwargs)
 
-class dotdict(dict):
-    """Wrapper to allow dotted access to dictionary elements.
-
-    Is a real :class:`dict` object, but also serves up keys as attributes
-    when reading attributes.
-
-    Supports recursive instantiation for keys which contain dots.
-
-    Example:
-
-        >>> x = pwnlib.elf.elf.dotdict()
-        >>> isinstance(x, dict)
-        True
-        >>> x['foo'] = 3
-        >>> x.foo
-        3
-        >>> x['bar.baz'] = 4
-        >>> x.bar.baz
-        4
-    """
-    def __getattr__(self, name):
-        if name in self:
-            return self[name]
-
-        name_dot = name + '.'
-        name_len = len(name_dot)
-        subkeys = {k[name_len:]: self[k] for k in self if k.startswith(name_dot)}
-
-        if subkeys:
-            return dotdict(subkeys)
-
-        return getattr(super(dotdict, self), name)
-
-class ELF(ELFFile):
+class ELF(ELFFile, Binary):
     """Encapsulates information about an ELF file.
 
     Example:
@@ -223,16 +191,16 @@ class ELF(ELFFile):
         if isinstance(self.arch, (bytes, six.text_type)):
             self.arch = self.arch.lower()
 
-        #: :class:`dotdict` of ``name`` to ``address`` for all symbols in the ELF
+        #: :class:`pwnlib.binary.dotdict` of ``name`` to ``address`` for all symbols in the ELF
         self.symbols = dotdict()
 
-        #: :class:`dotdict` of ``name`` to ``address`` for all Global Offset Table (GOT) entries
+        #: :class:`pwnlib.binary.dotdict` of ``name`` to ``address`` for all Global Offset Table (GOT) entries
         self.got = dotdict()
 
-        #: :class:`dotdict` of ``name`` to ``address`` for all Procedure Linkate Table (PLT) entries
+        #: :class:`pwnlib.binary.dotdict` of ``name`` to ``address`` for all Procedure Linkate Table (PLT) entries
         self.plt = dotdict()
 
-        #: :class:`dotdict` of ``name`` to :class:`.Function` for each function in the ELF
+        #: :class:`pwnlib.binary.dotdict` of ``name`` to :class:`.Function` for each function in the ELF
         self.functions = dotdict()
 
         #: :class:`dict`: Linux kernel configuration, if this is a Linux kernel image
@@ -552,7 +520,7 @@ class ELF(ELFFile):
 
     @property
     def sym(self):
-        """:class:`dotdict`: Alias for :attr:`.ELF.symbols`"""
+        """:class:`pwnlib.binary.dotdict`: Alias for :attr:`.ELF.symbols`"""
         return self.symbols
 
     @property

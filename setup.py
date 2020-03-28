@@ -59,6 +59,8 @@ install_requires     = ['paramiko>=1.15.2',
                         'packaging',
                         'psutil>=3.3.0',
                         'intervaltree>=3.0',
+                        'pefile',
+                        'pdbparse',
                         'sortedcontainers',
                         'unicorn>=1.0.2rc1', # see unicorn-engine/unicorn#1100, unicorn-engine/unicorn#1170
 ]
