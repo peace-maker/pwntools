@@ -93,12 +93,12 @@ class PE(PEFile, Binary):
         if hasattr(self, 'DIRECTORY_ENTRY_IMPORT'):
             for module in self.DIRECTORY_ENTRY_IMPORT:
                 for symbol in module.imports:
-                    self.symbols[symbol.name] = symbol.address
-                    self.imports[symbol.name] = symbol.address
+                    self.symbols[str(symbol.name, 'utf-8')] = symbol.address
+                    self.imports[str(symbol.name, 'utf-8')] = symbol.address
 
         if hasattr(self, 'DIRECTORY_ENTRY_EXPORT'):
             for symbol in self.DIRECTORY_ENTRY_EXPORT.symbols:
-                self.symbols[symbol.name] = symbol.address
+                self.symbols[str(symbol.name, 'utf-8')] = symbol.address
         
         if self.pdb:
             try:
@@ -136,7 +136,7 @@ class PE(PEFile, Binary):
     
     @property
     def entry(self):
-        """:class:`int`: Address of the entry point for the ELF"""
+        """:class:`int`: Address of the entry point for the PE"""
         return self.OPTIONAL_HEADER.AddressOfEntryPoint
     entrypoint = entry
     start      = entry
@@ -205,14 +205,17 @@ class PE(PEFile, Binary):
 
     @property
     def aslr(self):
+        # Image has relocation information available and can be relocated.
         if (self.FILE_HEADER.Characteristics & IMAGE_CHARACTERISTICS['IMAGE_FILE_RELOCS_STRIPPED']) == 0 and self.dynamicbase:
             return True
+        # Managed images always use ASLR.
         if self.dotnet:
             return True
         return False
 
     @property
     def dotnet(self):
+        # Image is managed by the .NET runtime.
         return self.OPTIONAL_HEADER.DATA_DIRECTORY[DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_COM_DESCRIPTOR']].VirtualAddress != 0
 
     @property
@@ -247,13 +250,14 @@ class PE(PEFile, Binary):
 
     @property
     def safeseh(self):
-
+        # Image has a table of safe exception handlers.
         if not hasattr(self, 'DIRECTORY_ENTRY_LOAD_CONFIG') or not self.DIRECTORY_ENTRY_LOAD_CONFIG.struct:
             return False
         
         if self.DIRECTORY_ENTRY_LOAD_CONFIG.struct.Size < 112:
             return False
 
+        # No point in checking for SafeSEH if the image has NO_SEH set in the first place.
         if not self.seh:
             return False
 
@@ -277,6 +281,7 @@ class PE(PEFile, Binary):
 
     @property
     def rfg(self):
+        # Image supports Return Flow Guard.
         if not hasattr(self, 'DIRECTORY_ENTRY_LOAD_CONFIG') or not self.DIRECTORY_ENTRY_LOAD_CONFIG.struct:
             return False
         
