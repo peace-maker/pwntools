@@ -37,7 +37,7 @@ def main(args):
 
     for f in files:
         try:
-            e = Binary.from_path(f.name)
+            e = Binary.from_path(f.name, load_pdb=False)
         except:
             log.warn('Invalid file: %s', f.name)
 
