@@ -93,12 +93,16 @@ class PE(PEFile, Binary):
         if hasattr(self, 'DIRECTORY_ENTRY_IMPORT'):
             for module in self.DIRECTORY_ENTRY_IMPORT:
                 for symbol in module.imports:
-                    self.symbols[str(symbol.name, 'utf-8')] = symbol.address
-                    self.imports[str(symbol.name, 'utf-8')] = symbol.address
+                    # Ignore symbols imported by ordinal only.
+                    if symbol.name:
+                        self.symbols[str(symbol.name, 'utf-8')] = symbol.address
+                        self.imports[str(symbol.name, 'utf-8')] = symbol.address
 
         if hasattr(self, 'DIRECTORY_ENTRY_EXPORT'):
             for symbol in self.DIRECTORY_ENTRY_EXPORT.symbols:
-                self.symbols[str(symbol.name, 'utf-8')] = symbol.address
+                # Ignore symbols exported by ordinal only.
+                if symbol.name:
+                    self.symbols[str(symbol.name, 'utf-8')] = symbol.address
         
         if self.pdb:
             try:
