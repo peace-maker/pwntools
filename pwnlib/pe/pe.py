@@ -88,7 +88,7 @@ class PE(PEFile, Binary):
             self._describe()
 
     def _populate_symbols(self):
-        self.symbols['start'] = self.OPTIONAL_HEADER.AddressOfEntryPoint
+        self.symbols['start'] = self.OPTIONAL_HEADER.ImageBase + self.OPTIONAL_HEADER.AddressOfEntryPoint
         
         if hasattr(self, 'DIRECTORY_ENTRY_IMPORT'):
             for module in self.DIRECTORY_ENTRY_IMPORT:
@@ -404,7 +404,7 @@ class PE(PEFile, Binary):
             >>> bash.address == bash.offset_to_vaddr(0)
             True
         """
-        return self.get_rva_from_offset(offset)
+        return self.OPTIONAL_HEADER.ImageBase + self.get_rva_from_offset(offset)
     
     def vaddr_to_offset(self, address):
         """vaddr_to_offset(address) -> int
@@ -428,7 +428,7 @@ class PE(PEFile, Binary):
             >>> bash.vaddr_to_offset(0) is None
             True
         """
-        return self.get_offset_from_rva(address)
+        return self.get_offset_from_rva(address - self.OPTIONAL_HEADER.ImageBase)
     
     def read(self, address, count):
         return self.get_data(address, count)
