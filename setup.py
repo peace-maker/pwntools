@@ -70,6 +70,9 @@ install_requires     = ['paramiko>=1.15.2',
 if platform.python_version_tuple()[0] == '2':
     install_requires += ['pathlib2']
 
+if sys.platform == 'win32':
+    install_requires += ['PythonForWindows']
+
 # Check that the user has installed the Python development headers
 PythonH = os.path.join(get_python_inc(), 'Python.h')
 if not os.path.exists(PythonH):
