@@ -554,8 +554,9 @@ def debug(args, gdbscript=None, exe=None, ssh=None, env=None, sysroot=None, api=
         Resume the program
 
         >>> io.gdb.continue_nowait()
-        >>> io.recvall()
+        >>> io.recvline()
         b'foo\n'
+        >>> io.close()
 
 
     Using SSH:
