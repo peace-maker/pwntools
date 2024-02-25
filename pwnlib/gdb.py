@@ -526,6 +526,7 @@ def debug(args, gdbscript=None, exe=None, ssh=None, env=None, sysroot=None, api=
         >>> io = gdb.debug(["grep", "local-libc.so", "/proc/self/maps"], gdbscript="continue", env={"LD_PRELOAD": "./local-libc.so"})
         >>> io.recvline().split()[-1] # doctest: +ELLIPSIS
         b'.../local-libc.so'
+        >>> io.close()
         >>> os.remove("./local-libc.so") # cleanup
 
 
@@ -555,6 +556,8 @@ def debug(args, gdbscript=None, exe=None, ssh=None, env=None, sysroot=None, api=
         >>> io.gdb.continue_nowait()
         >>> io.recvline()
         b'foo\n'
+        >>> io.close()
+        >>> io.gdb.quit()
 
 
     Using SSH:
@@ -980,6 +983,7 @@ def attach(target, gdbscript = '', exe = None, gdb_args = None, ssh = None, sysr
 
             >>> io.recvall()
             b'Hello from bash\n'
+            >>> io_gdb.quit()
 
         Attach to the remote process from a :class:`.remote` or :class:`.listen` tube,
         as long as it is running on the same machine.
