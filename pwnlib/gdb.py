@@ -554,10 +554,8 @@ def debug(args, gdbscript=None, exe=None, ssh=None, env=None, sysroot=None, api=
         Resume the program
 
         >>> io.gdb.continue_nowait()
-        >>> io.recvline()
+        >>> io.recvall()
         b'foo\n'
-        >>> io.close()
-        >>> io.gdb.quit()
 
 
     Using SSH:
@@ -983,7 +981,6 @@ def attach(target, gdbscript = '', exe = None, gdb_args = None, ssh = None, sysr
 
             >>> io.recvall()
             b'Hello from bash\n'
-            >>> io_gdb.quit()
 
         Attach to the remote process from a :class:`.remote` or :class:`.listen` tube,
         as long as it is running on the same machine.
