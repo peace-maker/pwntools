@@ -74,6 +74,13 @@ class listen(sock):
     #: Sockaddr structure that is being listened on
     sockaddr = None
 
+    #: Remote host
+    rhost = None
+
+    #: Remote port
+    rport = None
+
+    #: Thread that accepts incoming connection
     _accepter = None
 
     def __init__(self, port=0, bindaddr='::',
@@ -92,13 +99,14 @@ class listen(sock):
         h = self.waitfor('Trying to bind to %s on port %s' % (bindaddr, port))
 
         for res in socket.getaddrinfo(bindaddr, port, fam, typ, 0, socket.AI_PASSIVE):
-            self.family, self.type, self.proto, self.canonname, self.sockaddr = res
+            self.family, self.type, self.protocol, self.canonname, self.sockaddr = res
+            self.proto = self.protocol # backwards compatibility
 
             if self.type not in [socket.SOCK_STREAM, socket.SOCK_DGRAM]:
                 continue
 
             h.status("Trying %s" % self.sockaddr[0])
-            listen_sock = socket.socket(self.family, self.type, self.proto)
+            listen_sock = socket.socket(self.family, self.type, self.protocol)
             listen_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             if self.family == socket.AF_INET6:
                 try:

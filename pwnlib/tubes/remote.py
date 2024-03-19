@@ -102,7 +102,8 @@ class remote(sock):
 
         with self.waitfor('Opening connection to %s on port %s' % (self.rhost, self.rport)) as h:
             for res in socket.getaddrinfo(self.rhost, self.rport, fam, typ, 0, socket.AI_PASSIVE):
-                self.family, self.type, self.proto, _canonname, sockaddr = res
+                self.family, self.type, self.protocol, _canonname, sockaddr = res
+                self.proto = self.protocol # backwards compatibility
 
                 if self.type not in [socket.SOCK_STREAM, socket.SOCK_DGRAM]:
                     continue

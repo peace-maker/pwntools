@@ -66,6 +66,16 @@ class server(sock):
     #: Sockaddr structure that is being listened on
     sockaddr = None
 
+    #: Queue of incoming connections
+    connections = None
+
+    #: Remote host of last connected client
+    rhost = None
+
+    #: Remote port of last connected client
+    rport = None
+
+    #: Thread that accepts incoming connections
     _accepter = None
 
     def __init__(self, port=0, bindaddr = "::", fam = "any", typ = "tcp",
@@ -83,7 +93,8 @@ class server(sock):
         h = self.waitfor('Trying to bind to %s on port %d' % (bindaddr, port))
 
         for res in socket.getaddrinfo(bindaddr, port, fam, typ, 0, socket.AI_PASSIVE):
-            self.family, self.type, self.proto, self.canonname, self.sockaddr = res
+            self.family, self.type, self.protocol, self.canonname, self.sockaddr = res
+            self.proto = self.protocol # backwards compatibility
 
             if self.type not in [socket.SOCK_STREAM, socket.SOCK_DGRAM]:
                 continue

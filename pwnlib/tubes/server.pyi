@@ -17,7 +17,6 @@ class server(sock):
     canonname: str | None
     sockaddr: tuple[str, int] | tuple[str, int, int, int] | None
 
-    sock: socket.socket | None
     connections: Queue[remote]
     rhost: str | None
     rport: int | None
@@ -33,3 +32,6 @@ class server(sock):
         *args: Any,
         **kwargs: Any
     ) -> None: ...
+
+    def next_connection(self) -> remote: ...
+    
