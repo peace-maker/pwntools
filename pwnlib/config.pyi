@@ -1,0 +1,6 @@
+from typing import Any, Callable, Mapping
+
+registered_configs: dict[str, Callable[[Mapping[str, Any]], None]]
+
+def register_config(section: str, function: Callable[[Mapping[str, Any]], None]) -> None: ...
+def initialize() -> None: ...

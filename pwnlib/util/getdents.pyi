@@ -1,0 +1,13 @@
+from typing import AnyStr
+
+class linux_dirent:
+    d_ino: int
+    d_off: int
+    d_reclen: int
+    d_name: str
+
+    def __init__(self, buf: AnyStr) -> None: ...
+    def __len__(self) -> int: ...
+    def __str__(self) -> str: ...
+
+def dirents(buf: AnyStr) -> list[str]: ...

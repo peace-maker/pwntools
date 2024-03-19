@@ -1,0 +1,3 @@
+from typing import Any, AnyStr
+
+def wget(url: str, save: AnyStr | Any | None = ..., timeout: int = ..., **kwargs: Any) -> str: ...

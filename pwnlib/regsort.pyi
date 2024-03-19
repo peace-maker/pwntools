@@ -1,0 +1,16 @@
+from collections.abc import Iterable, Mapping, Sequence
+from typing import Any
+
+def check_cycle(reg: str, assignments: Mapping[str, Any]) -> list: ...
+def extract_dependencies(reg: str, assignments: Mapping[str, Any]) -> list: ...
+def resolve_order(reg: str, deps: Mapping[str, list[str]]) -> list[str]: ...
+def depends_on_cycle(
+    reg: str, assignments: Mapping[str, Any], in_cycles: Iterable[str]
+) -> bool: ...
+def regsort(
+    in_out: Mapping[str, Any],
+    all_regs: Sequence[str],
+    tmp: str | None = ...,
+    xchg: bool = ...,
+    randomize: bool = ...,
+) -> list[tuple[str, str, str]]: ...

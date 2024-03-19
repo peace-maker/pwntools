@@ -7,3 +7,5 @@ recursive-include docs   *.rst *.png Makefile *.py *.txt
 recursive-include pwnlib *.py *.asm *.rst *.md *.txt *.sh __doc__ *.mako
 recursive-include pwn    *.py *.asm *.rst *.md *.txt *.sh
 global-exclude *.pyc
+global-include *.pyi
+global-include py.typed
