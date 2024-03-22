@@ -1,4 +1,5 @@
 from typing import Any, AnyStr, Callable, IO
+from typing_extensions import TypeAlias
 from subprocess import Popen
 
 from pwnlib.elf.corefile import Corefile
@@ -11,6 +12,10 @@ STDOUT: int
 PIPE: int
 
 signal_names: dict[int, str]
+
+_ArgvType: TypeAlias = (
+    AnyStr | bytearray | list[AnyStr | bytearray] | tuple[AnyStr | bytearray] | None
+)
 
 class process(tube):
     STDOUT: int
