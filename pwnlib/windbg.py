@@ -237,3 +237,46 @@ def attach(target, windbgscript=None, windbg_args=[]):
         proc.wait_for_debugger(pid, windbg_pid)
 
     return windbg_pid
+
+def minidump(process, dump_type='mini'):
+    if context.noptrace:
+        log.warn_once("Skipping minidump since context.noptrace==True")
+        return None
+
+    # use minidump's createminidump util
+    from minidump.utils.createminidump import create_dump, MINIDUMP_TYPE
+    minidump_path = './dump.%s.%i.dmp' % (os.path.basename(process.executable),
+                                        process.pid)
+    minidump_type = MINIDUMP_TYPE.MiniDumpNormal | MINIDUMP_TYPE.MiniDumpWithHandleData | \
+                    MINIDUMP_TYPE.MiniDumpWithIndirectlyReferencedMemory | \
+                    MINIDUMP_TYPE.MiniDumpWithProcessThreadData | \
+                    MINIDUMP_TYPE.MiniDumpWithFullMemoryInfo | \
+                    MINIDUMP_TYPE.MiniDumpWithThreadInfo | \
+                    MINIDUMP_TYPE.MiniDumpWithUnloadedModules
+    create_dump(process.pid, minidump_path, minidump_type, with_debug=False)
+
+    # DUMP_TYPES = {
+    #     'mini': '-mm',
+    #     'full': '-ma',
+    #     'triage': '-mt',
+    #     'miniplus': '-mp',
+    # }
+
+    # if dump_type not in DUMP_TYPES:
+    #     log.error('Invalid dump type: %s', dump_type)
+
+    # procdump = misc.which('procdump.exe')
+    # if not procdump:
+    #     log.error('procdump is not installed or in system PATH. Install the Windows Sysinternals Suite first.')
+
+    # argv = [procdump, DUMP_TYPES[dump_type], '-o', '-n', '1', str(process.pid), minidump_path]
+    # proc = subprocess.run(argv, timeout=10, universal_newlines=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    # # procdump returns 1 even if it succeeds..
+    # if proc.stderr:
+    #     log.debug('procdump stdout: %s', proc.stdout)
+    #     log.debug('procdump stderr: %s', proc.stderr)
+    if not os.path.exists(minidump_path):
+        log.error('Could not generate a minidump for process %d', process.pid)
+    
+    from minidump.minidumpfile import MinidumpFile
+    return MinidumpFile.parse(minidump_path)

@@ -1437,6 +1437,22 @@ class process(tube):
 
         return self._corefile
 
+    def minidump(self):
+        if sys.platform != 'win32':
+            self.error("Minidump generation is only supported on Windows")
+        import pwnlib.windbg
+
+        if self.poll() is None:
+            minidump = pwnlib.windbg.minidump(self)
+            if minidump is None:
+                self.error("Could not create minidump with procdump for %s", self.executable)
+            return minidump
+    
+        # https://learn.microsoft.com/en-us/windows/win32/wer/collecting-user-mode-dumps
+        # procdump.exe -t -mm -r self.pid
+        self.error("Minidump generation of dead processes is not supported")
+        
+
     def leak(self, address, count=1):
         r"""Leaks memory within the process at the specified address.
 
