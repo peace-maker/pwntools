@@ -55,6 +55,7 @@ dependencies = [
     "unix-ar; python_version >= '3.6'",
     "zstandard",
     "pefile",
+    "pdbparse",
     "minidump",
 ]
 

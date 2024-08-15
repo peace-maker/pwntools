@@ -11,6 +11,7 @@ from pefile import MACHINE_TYPE
 from pwnlib.elf.elf import dotdict
 from pwnlib.context import context
 from pwnlib.log import getLogger
+from pwnlib.pe.pdb import PDB
 from pwnlib.term import text
 from pwnlib.tubes.process import process
 
@@ -19,7 +20,7 @@ log = getLogger(__name__)
 __all__ = ['PE']
 
 class PE(PEFile):
-    def __init__(self, path, checksec=True):
+    def __init__(self, path, checksec=True, load_pdb=True):
         super(PE,self).__init__(path)
 
         #: :class:`str`: Path to the file
@@ -70,6 +71,14 @@ class PE(PEFile):
         #: Operating system of the PE
         self.os = 'windows'
 
+        #: Debugging information PDB of the PE.
+        self.pdb = None
+        if load_pdb:
+            try:
+                self.pdb = PDB.from_pefile(self, os.path.dirname(self.path))
+            except Exception as e:
+                log.warn('Error parsing PDB: %s', str(e))
+
         self._populate_symbols()
 
         if checksec:
@@ -91,6 +100,16 @@ class PE(PEFile):
                 # Ignore symbols exported by ordinal only.
                 if symbol.name:
                     self.symbols[str(symbol.name, 'utf-8')] = symbol.address
+
+        if self.pdb:
+            try:
+                dbg_symbols = self.pdb.populate_symbols(self.address)
+                if dbg_symbols:
+                    self.symbols.update(dbg_symbols)
+                else:
+                    log.warn('PDB file not loaded %s', self.pdb.filename)
+            except Exception as e:
+                log.debug('PDB file failed to load: %s', str(e))
 
     def process(self, argv=[], *a, **kw):
         """process(argv=[], *a, **kw) -> process
@@ -202,6 +221,13 @@ class PE(PEFile):
     def address(self, new):
         self.relocate_image(new)
         self._address = self.OPTIONAL_HEADER.ImageBase
+        self._populate_symbols()
+    
+    def load_pdb(self, path):
+        """
+        Loads the debug symbols for this PE from the PDB file.
+        """
+        self.pdb = PDB(path, os.path.dirname(self.path))
         self._populate_symbols()
 
     @property
