@@ -163,6 +163,14 @@ jobs:
       run: |
         echo 0 | sudo tee /proc/sys/kernel/yama/ptrace_scope # required by some gdb doctests
 
+    - name: Setup upterm session
+      uses: lhotari/action-upterm@v1
+      with:
+        ## limits ssh access and adds the ssh public key for the user which triggered the workflow
+        limit-access-to-actor: true
+        ## limits ssh access and adds the ssh public keys of the listed GitHub users
+        limit-access-to-users: peace-maker,Arusekk
+
     - name: Coverage doctests
       run: |
         # Python version installed using setup-python interferes with gdb's python
