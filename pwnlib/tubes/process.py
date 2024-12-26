@@ -1477,6 +1477,22 @@ class process(tube):
             >>> p.leak(e.address, 4)
             b'\x7fELF'
         """
+
+        if sys.platform == 'win32':
+            from ctypes import c_size_t, create_string_buffer, windll
+            PROCESS_VM_READ = 0x10
+            handle = windll.kernel32.OpenProcess(PROCESS_VM_READ, 0, self.pid)
+            if handle == 0:
+                return None
+            try:
+                buf = create_string_buffer(count)
+                x = windll.kernel32.ReadProcessMemory(handle, c_size_t(address), buf, count, 0)
+                if x == 0:
+                    return None
+                return buf.raw
+            finally:
+                windll.kernel32.CloseHandle(handle)
+
         # If it's running under qemu-user, don't leak anything.
         if 'qemu-' in os.path.realpath('/proc/%i/exe' % self.pid):
             self.error("Cannot use leaker on binaries under QEMU.")
@@ -1522,6 +1538,21 @@ class process(tube):
             >>> io.recvall()
             b'aaaabaaacaaadaaaeaaafaaagaaahaaa'
         """
+
+        if sys.platform == 'win32':
+            from ctypes import c_size_t, windll
+            PROCESS_VM_WRITE = 0x20
+            handle = windll.kernel32.OpenProcess(PROCESS_VM_WRITE, 0, self.pid)
+            if handle == 0:
+                return None
+            try:
+                written = c_size_t(0)
+                x = windll.kernel32.WriteProcessMemory(handle, c_size_t(address), data, len(data), written)
+                if x == 0:
+                    return None
+                return written.value
+            finally:
+                windll.kernel32.CloseHandle(handle)
 
         if 'qemu-' in os.path.realpath('/proc/%i/exe' % self.pid):
             self.error("Cannot use leaker on binaries under QEMU.")

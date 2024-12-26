@@ -71,6 +71,7 @@ import intervaltree
 from pwnlib import adb
 from pwnlib import qemu
 from pwnlib.asm import *
+from pwnlib.binary import Binary, dotdict
 from pwnlib.context import LocalContext
 from pwnlib.context import context
 from pwnlib.elf.config import kernel_configuration
@@ -138,45 +139,7 @@ def load(*args, **kwargs):
     """Compatibility wrapper for pwntools v1"""
     return ELF(*args, **kwargs)
 
-class dotdict(dict):
-    """Wrapper to allow dotted access to dictionary elements.
-
-    Is a real :class:`dict` object, but also serves up keys as attributes
-    when reading attributes.
-
-    Supports recursive instantiation for keys which contain dots.
-
-    Example:
-
-        >>> x = pwnlib.elf.elf.dotdict()
-        >>> isinstance(x, dict)
-        True
-        >>> x['foo'] = 3
-        >>> x.foo
-        3
-        >>> x['bar.baz'] = 4
-        >>> x.bar.baz
-        4
-    """
-    def __missing__(self, name):
-        if isinstance(name, (bytes, bytearray)):
-            name = packing._decode(name)
-            return self[name]
-        raise KeyError(name)
-
-    def __getattr__(self, name):
-        if name in self:
-            return self[name]
-
-        name_dot = name + '.'
-        name_len = len(name_dot)
-        subkeys = {k[name_len:]: self[k] for k in self if k.startswith(name_dot)}
-
-        if subkeys:
-            return dotdict(subkeys)
-        raise AttributeError(name)
-
-class ELF(ELFFile):
+class ELF(ELFFile, Binary):
     """Encapsulates information about an ELF file.
 
     Example:
@@ -265,7 +228,7 @@ class ELF(ELFFile):
         #: :class:`str`: Architecture of the file (e.g. ``'i386'``, ``'arm'``).
         #:
         #: See: :attr:`.ContextType.arch`
-        self.arch = self.get_machine_arch()
+        self.arch = self._get_machine_arch()
         if isinstance(self.arch, (bytes, six.text_type)):
             self.arch = self.arch.lower()
 
@@ -467,7 +430,7 @@ class ELF(ELFFile):
             self.checksec(*a, **kw)
         )
 
-    def get_machine_arch(self):
+    def _get_machine_arch(self):
         return {
             ('EM_X86_64', 64): 'amd64',
             ('EM_X86_64', 32): 'amd64', # x32 ABI

@@ -238,10 +238,56 @@ def attach(target, windbgscript=None, windbg_args=[]):
 
     return windbg_pid
 
-def minidump(process, dump_type='mini'):
+def minidump_on_crash(process, dump_type='mini'):
     if context.noptrace:
         log.warn_once("Skipping minidump since context.noptrace==True")
         return None
+    
+    DUMP_TYPES = {
+        'mini': '-mm',
+        'full': '-ma',
+        'triage': '-mt',
+        'miniplus': '-mp',
+    }
+
+    if dump_type not in DUMP_TYPES:
+        log.error('Invalid dump type: %s', dump_type)
+    
+    minidump_path = './dump.%s.%i.dmp' % (os.path.basename(process.executable),
+                                        process.pid)
+
+    procdump = misc.which('procdump.exe')
+    if not procdump:
+        log.error('procdump is not installed or in system PATH. Install the Windows Sysinternals Suite first.')
+
+    # -e      Write a dump when the process encounters an unhandled exception.
+    # -n      Number of dumps to write before exiting.
+    # -o      Overwrite an existing dump file.
+    # -t      Write a dump when the process terminates.
+    argv = [procdump, DUMP_TYPES[dump_type], '-o', '-e', '-t', str(process.pid), minidump_path]
+    proc = subprocess.Popen(argv, universal_newlines=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    # procdump returns 1 even if it succeeds..
+    if proc.poll() is not None:
+        stdout, stderr = proc.communicate()
+        log.debug('procdump stdout: %s', stdout)
+        log.debug('procdump stderr: %s', stderr)
+        return None
+    
+    def cleanup():
+        stdout, stderr = proc.communicate()
+        log.debug('procdump stdout: %s', stdout)
+        log.debug('procdump stderr: %s', stderr)
+        proc.kill()
+        if os.path.exists(minidump_path):
+            os.unlink(minidump_path)
+    atexit.register(cleanup)
+    
+    return minidump_path
+
+def minidump(process, dump_type='mini'):
+    if context.noptrace:
+        log.warn_once("Skipping minidump since context.noptrace==True")
+        return
 
     # use minidump's createminidump util
     from minidump.utils.createminidump import create_dump, MINIDUMP_TYPE

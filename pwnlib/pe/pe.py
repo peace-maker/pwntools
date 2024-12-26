@@ -7,21 +7,27 @@ from pefile import DIRECTORY_ENTRY
 from pefile import DLL_CHARACTERISTICS
 from pefile import IMAGE_CHARACTERISTICS
 from pefile import MACHINE_TYPE
+from pefile import SECTION_CHARACTERISTICS
 
-from pwnlib.elf.elf import dotdict
+from pwnlib.binary import Binary, dotdict
 from pwnlib.context import context
 from pwnlib.log import getLogger
 from pwnlib.pe.pdb import PDB
 from pwnlib.term import text
-from pwnlib.tubes.process import process
+from pwnlib.util import packing
 
 log = getLogger(__name__)
 
 __all__ = ['PE']
 
-class PE(PEFile):
+class PE(PEFile, Binary):
     def __init__(self, path, checksec=True, load_pdb=True):
         super(PE,self).__init__(path)
+
+        # File handle to mimic ELF class
+        # ROP prints the .file.name
+        self.file = open(path, 'rb')
+        self.file.close()
 
         #: :class:`str`: Path to the file
         self.path = os.path.abspath(path)
@@ -29,7 +35,7 @@ class PE(PEFile):
         #: :class:`str`: Architecture of the file (e.g. ``'i386'``, ``'arm'``).
         #:
         #: See: :attr:`.ContextType.arch`
-        self.arch = self.get_machine_arch().lower()
+        self.arch = self._get_machine_arch().lower()
 
         #: :class:`pwnlib.binary.dotdict` of ``name`` to ``address`` for all symbols in the PE
         self.symbols = dotdict()
@@ -83,6 +89,8 @@ class PE(PEFile):
 
         if checksec:
             self._describe()
+    
+    # https://github.com/0xballistics/inject2pe/blob/master/inject2pe.py
 
     def _populate_symbols(self):
         self.symbols['start'] = self.OPTIONAL_HEADER.ImageBase + self.OPTIONAL_HEADER.AddressOfEntryPoint
@@ -110,23 +118,6 @@ class PE(PEFile):
                     log.warn('PDB file not loaded %s', self.pdb.filename)
             except Exception as e:
                 log.debug('PDB file failed to load: %s', str(e))
-
-    def process(self, argv=[], *a, **kw):
-        """process(argv=[], *a, **kw) -> process
-
-        Execute the binary with :class:`.process`.  Note that ``argv``
-        is a list of arguments, and should not include ``argv[0]``.
-
-        Arguments:
-            argv(list): List of arguments to the binary
-            *args: Extra arguments to :class:`.process`
-            **kwargs: Extra arguments to :class:`.process`
-
-        Returns:
-            :class:`.process`
-        """
-
-        return process([self.path] + argv, *a, **kw)
 
     def debug(self, argv=[], *a, **kw):
         """debug(argv=[], *a, **kw) -> tube
@@ -157,14 +148,19 @@ class PE(PEFile):
     def __repr__(self):
         return "PE(%r)" % self.path
 
-    def get_machine_arch(self):
+    def _get_machine_arch(self):
         machine_type = MACHINE_TYPE[self.FILE_HEADER.Machine]
         return {
+            'IMAGE_FILE_MACHINE_ALPHA64': 'alpha',
             'IMAGE_FILE_MACHINE_AMD64': 'amd64',
-            'IMAGE_FILE_MACHINE_I386' :'i386',
             'IMAGE_FILE_MACHINE_ARM': 'arm',
+            'IMAGE_FILE_MACHINE_ARM64': 'aarch64',
+            'IMAGE_FILE_MACHINE_I386' :'i386',
+            'IMAGE_FILE_MACHINE_IA64': 'ia64',
             'IMAGE_FILE_MACHINE_POWERPC': 'powerpc',
-            'IMAGE_FILE_MACHINE_IA64': 'ia64'
+            'IMAGE_FILE_MACHINE_RISCV32': 'riscv32',
+            'IMAGE_FILE_MACHINE_RISCV64': 'riscv64',
+            'IMAGE_FILE_MACHINE_THUMB': 'thumb',
         }.get(machine_type, machine_type)
     
     @property
@@ -426,11 +422,11 @@ class PE(PEFile):
             address layout by modifying :attr:`.PE.address`, the offset
             for any given address doesn't change.
 
-            >>> bash = PE('/bin/bash')
-            >>> bash.address == bash.offset_to_vaddr(0)
+            >>> cmd = PE(which('cmd.exe'))
+            >>> cmd.address == cmd.offset_to_vaddr(0)
             True
-            >>> bash.address += 0x123456
-            >>> bash.address == bash.offset_to_vaddr(0)
+            >>> cmd.address += 0x123456
+            >>> cmd.address == cmd.offset_to_vaddr(0)
             True
         """
         return self.OPTIONAL_HEADER.ImageBase + self.get_rva_from_offset(offset)
@@ -448,16 +444,62 @@ class PE(PEFile):
             or :const:`None`.
 
         Examples:
-            >>> bash = PE(which('bash'))
-            >>> bash.vaddr_to_offset(bash.address)
+            >>> cmd = PE(which('cmd.exe'))
+            >>> cmd.vaddr_to_offset(cmd.address)
             0
-            >>> bash.address += 0x123456
-            >>> bash.vaddr_to_offset(bash.address)
+            >>> cmd.address += 0x123456
+            >>> cmd.vaddr_to_offset(cmd.address)
             0
-            >>> bash.vaddr_to_offset(0) is None
+            >>> cmd.vaddr_to_offset(0) is None
             True
         """
         return self.get_offset_from_rva(address - self.OPTIONAL_HEADER.ImageBase)
     
     def read(self, address, count):
-        return self.get_data(address, count)
+        return self.get_data(address - self.OPTIONAL_HEADER.ImageBase, count)
+
+    def save(self, path=None):
+        """Save the PE to a file
+
+        >>> cmd = PE(which('cmd.exe'))
+        >>> cmd.save('/tmp/cmd_copy')
+        >>> copy = open('/tmp/cmd_copy', 'rb')
+        >>> cmd = open(which('cmd'), 'rb')
+        >>> cmd.read() == copy.read()
+        True
+        """
+        self.write(path)
+
+    def search(self, needle, writable = False, executable = False):
+        """search(needle, writable = False, executable = False) -> int
+
+        Search for a string in the PE file
+
+        Arguments:
+            needle(str): String to search for
+            writable(bool): Whether to search writable sections
+            executable(bool): Whether to search executable sections
+
+        Returns:
+            int: Address of the first occurance of the string, or :const:`None`.
+
+        Examples:
+            >>> cmd = PE(which('cmd.exe'))
+            >>> cmd.search(b'cmd.exe')
+            0
+        """
+        
+        if writable:
+            sections = [section for section in self.sections if section.Characteristics & SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_WRITE']]
+        elif executable:
+            sections = [section for section in self.sections if section.Characteristics & SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_EXECUTE']]
+        else:
+            sections = self.sections
+
+        needle = packing._need_bytes(needle)
+        for section in sections:
+            data = section.get_data(ignore_padding=True)
+            offset = data.find(needle)
+            if offset != -1:
+                return self.OPTIONAL_HEADER.ImageBase + section.get_VirtualAddress_adj() + offset
+        return None

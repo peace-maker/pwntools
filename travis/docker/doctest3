@@ -24,9 +24,7 @@ if [ -n "$TARGET" ]; then
 	echo "DOCTEST TARGET is $TARGET"
 fi
 
-# GDB tests currently don't work inside Docker for unknown reasons.
-# Disable these tests until we can get them working.
-echo > ~/pwntools/docs/source/gdb.rst
+# Android tests are disabled in general, support is deprecateds
 echo > ~/pwntools/docs/source/adb.rst
 echo > ~/pwntools/docs/source/protocols.rst
 

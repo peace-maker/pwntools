@@ -931,8 +931,6 @@ def attach(target, gdbscript = '', exe = None, gdb_args = None, ssh = None, sysr
         target: The target to attach to.
         gdbscript(:obj:`str` or :obj:`file`): GDB script to run after attaching.
         exe(str): The path of the target binary.
-        arch(str): Architechture of the target binary.  If `exe` known GDB will
-          detect the architechture automatically (if it is supported).
         gdb_args(list): List of additional arguments to pass to GDB.
         sysroot(str): Set an alternate system root. The system root is used to
             load absolute shared library symbol files. This is useful to instruct
@@ -1335,7 +1333,46 @@ def attach(target, gdbscript = '', exe = None, gdb_args = None, ssh = None, sysr
     return gdb_pid, Gdb(conn)
 
 
-def ssh_gdb(ssh, argv, gdbscript = None, arch = None, **kwargs):
+def ssh_gdb(ssh, argv, gdbscript = None, **kwargs):
+    r"""ssh_gdb(ssh, argv, gdbscript = None, **kwargs) -> ssh_process
+    Start a remote process via SSH and attach to it with the local GDB
+    using a reverse SSH tunnel.
+
+    This starts a ``gdbserver`` on the remote end, and connects to it
+    using the local GDB. This is in contrast to :func:`attach` with
+    a :class:`.ssh_channel` which uses the GDB on the remote end.
+
+    Arguments:
+
+        ssh(pwnlib.tubes.ssh.ssh): SSH connection to use for the process
+        argv(list): Program and arguments to run
+        gdbscript(str): GDB script to run after attaching
+        **kwargs: Additional arguments to :func:`pwnlib.tubes.ssh.ssh.process`
+
+    Returns:
+        A :class:`pwnlib.tubes.ssh.process` object
+
+    Example:
+
+        >>> ssh_io = ssh('travis', 'example.pwnme', password='demopass')
+        >>> io = ssh_gdb(ssh_io, ['/bin/bash'], gdbscript='''
+        ... tbreak main
+        ... commands
+        ... call puts("Hello from remote debugger!")
+        ... detach
+        ... quit
+        ... end
+        ... continue
+        ... ''')
+        >>> io.recvline_contains(b'Hello')
+        b'Hello from remote debugger!'
+        >>> io.sendline(b'echo Hello from bash && exit')
+        >>> io.recvline_contains(b'Hello')
+        b'Hello from bash'
+        >>> io.close()
+        >>> ssh_io.close()
+    """
+
     if not isinstance(argv, (list, tuple)):
         argv = [argv]
 
@@ -1359,7 +1396,7 @@ def ssh_gdb(ssh, argv, gdbscript = None, arch = None, **kwargs):
     l = tubes.listen.listen(0)
     forwardport = l.lport
 
-    attach(('127.0.0.1', forwardport), gdbscript, local_exe, arch, ssh=ssh)
+    attach(('127.0.0.1', forwardport), gdbscript, local_exe, ssh=ssh)
     l.wait_for_connection().connect_both(ssh.connect_remote('127.0.0.1', gdbport))
     return c
 

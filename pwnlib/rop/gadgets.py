@@ -38,20 +38,30 @@ class Gadget(object):
     #:      add esp, 0x10; ret ==> 0x14
     move = 0
 
-    def __init__(self, address, insns, regs, move):
+    #: The amount that the stack pointer is modified after fetching the
+    #: return address from the stack.
+    #:
+    #: Examples:
+    #:      ret ==> 4
+    #:      ret 0x23 ==> 0x23
+    ret_move = 0
+
+    def __init__(self, address, insns, regs, move, ret_move):
         self.address = int(address)
         self.insns   = insns
         self.regs    = regs
         self.move    = move
+        self.ret_move= ret_move
 
     __indices = ['address', 'details']
 
     def __repr__(self):
-        return "%s(%#x, %r, %r, %#x)" % (self.__class__.__name__,
+        return "%s(%#x, %r, %r, %#x, %#x)" % (self.__class__.__name__,
                                          self.address,
                                          self.insns,
                                          self.regs,
-                                         self.move)
+                                         self.move,
+                                         self.ret_move)
 
     def __getitem__(self, key):
         # Backward compatibility

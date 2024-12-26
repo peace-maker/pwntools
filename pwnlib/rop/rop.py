@@ -375,6 +375,7 @@ import tempfile
 
 from pwnlib import abi
 from pwnlib import constants
+from pwnlib.binary import Binary
 from pwnlib.context import LocalContext
 from pwnlib.context import context
 from pwnlib.elf import ELF
@@ -412,9 +413,22 @@ class Padding(object):
     def __init__(self, name='<pad>'):
         self.name = name
 
+class ReturnPadding(object):
+    """
+    Placeholder for exactly one pointer-width of padding.
+    """
+    def __init__(self, ret_move, name='<ret imm16 pad>'):
+        self.name = name
+        self.ret_move = ret_move
+    
+    def __len__(self):
+        return self.ret_move
+
 def _slot_len(x):
     if isinstance(x, six.integer_types+(Unresolved, Padding, Gadget)):
         return context.bytes
+    elif isinstance(x, ReturnPadding):
+        return x.ret_move
     else:
         return len(packing.flat(x))
 
@@ -601,10 +615,10 @@ class ROP(object):
         import ropgadget
 
         # Permit singular ROP(elf) vs ROP([elf])
-        if isinstance(elfs, ELF):
+        if isinstance(elfs, Binary):
             elfs = [elfs]
         elif isinstance(elfs, (bytes, six.text_type)):
-            elfs = [ELF(elfs)]
+            elfs = [Binary.from_path(elfs)]
 
         #: List of individual ROP gadgets, ROP calls, SROP frames, etc.
         #: This is intended to be the highest-level abstraction that we can muster.
@@ -664,7 +678,7 @@ class ROP(object):
 
         for gadget in self.gadgets.values():
             # Do not use gadgets which doesn't end with 'ret'
-            if gadget.insns[-1] != 'ret':
+            if not gadget.insns[-1].startswith('ret'):
                 continue
             # Do not use gadgets which contain 'syscall' or 'int'
             if set(gadget.insns) & bad_instructions:
@@ -682,6 +696,7 @@ class ROP(object):
             # if both gadgets require same stack space, choose the one with less instructions
             if (old is gadget) \
               or (old.move > gadget.move) \
+              or (old.ret_move > gadget.ret_move) \
               or (old.move == gadget.move and len(old.insns) > len(gadget.insns)):
                 best_gadgets[touched] = gadget
 
@@ -691,7 +706,7 @@ class ROP(object):
         for num_gadgets in range(len(registers)):
             for combo in itertools.combinations(sorted(best_gadgets.values(), key=repr, reverse=True), 1+num_gadgets):
                 # Is this better than what we can already do?
-                cost = sum((g.move for g in combo))
+                cost = sum((g.move + g.ret_move for g in combo))
                 if cost > budget:
                     continue
 
@@ -711,7 +726,11 @@ class ROP(object):
         # We have our set of "winner" gadgets, let's build a stack!
         stack = []
 
+        prev_ret_move = 0
         for gadget in winner:
+            print("won:", gadget)
+            if prev_ret_move:
+                stack.append((ReturnPadding(prev_ret_move), 'ret imm16 padding'))
             moved = context.bytes # Account for the gadget itself
             goodregs = set(gadget.regs) & regset
             name = ",".join(goodregs)
@@ -729,6 +748,7 @@ class ROP(object):
                     left = gadget.move - slot
                     stack.append((Padding('<pad %#x>' % left), 'stack padding'))
                     moved += context.bytes
+            prev_ret_move = gadget.ret_move
 
             assert moved == gadget.move
 
@@ -879,6 +899,7 @@ class ROP(object):
         # which can only be calculated in this pass.
         #
         iterable = enumerate(chain)
+        next_ret_move = 0
         for idx, slot in iterable:
 
             remaining = len(chain) - 1 - idx
@@ -921,7 +942,7 @@ class ROP(object):
                 stack.describe(self.describe(slot))
 
                 registers    = slot.register_arguments
-
+                prev_ret_move = 0
                 for value, name in self.setRegisters(registers):
                     if name in registers:
                         index = slot.abi.register_arguments.index(name)
@@ -929,6 +950,7 @@ class ROP(object):
                         stack.describe('[arg%d] %s = %s' % (index, name, description))
                     elif isinstance(name, Gadget):
                         stack.describe('; '.join(name.insns))
+                        prev_ret_move = name.ret_move
                     elif isinstance(name, str):
                         stack.describe(name)
                     stack.append(value)
@@ -937,6 +959,9 @@ class ROP(object):
                     stack.describe(slot.name)
 
                 stack.append(slot.target)
+
+                if prev_ret_move:
+                    stack.append(ReturnPadding(prev_ret_move))
 
                 # For any remaining arguments, put them on the stack
                 stackArguments = slot.stack_arguments
@@ -1026,6 +1051,10 @@ class ROP(object):
 
             elif isinstance(slot, Padding):
                 stack[i] = self.generatePadding(i * context.bytes, context.bytes)
+                stack.describe(slot.name, slot_address)
+
+            elif isinstance(slot, ReturnPadding):
+                stack[i] = self.generatePadding(i * context.bytes, slot.ret_move)
                 stack.describe(slot.name, slot_address)
 
             elif isinstance(slot, Gadget):
@@ -1251,7 +1280,7 @@ class ROP(object):
         if not os.path.exists(cachedir):
             os.mkdir(cachedir)
 
-        if isinstance(files, ELF):
+        if isinstance(files, Binary):
             files = [files]
 
         sha256 = hashlib.sha256()
@@ -1292,7 +1321,7 @@ class ROP(object):
         # - leave
         # - pop reg
         # - add $sp, <hexadecimal value>
-        # - ret
+        # - ret <hexadecimal value>
         #
         # Currently, ROPgadget does not detect multi-byte "C2" ret.
         # https://github.com/JonathanSalwan/ROPgadget/issues/53
@@ -1300,7 +1329,7 @@ class ROP(object):
 
         pop   = re.compile(r'^pop (.{2,3})')
         add   = re.compile(r'^add [er]sp, ((?:0[xX])?[0-9a-fA-F]+)$')
-        ret   = re.compile(r'^ret$')
+        ret   = re.compile(r'^ret( (?:0[xX])?[0-9a-fA-F]+)?$')
         leave = re.compile(r'^leave$')
         int80 = re.compile(r'int +0x80')
         syscall = re.compile(r'^syscall$')
@@ -1385,6 +1414,7 @@ class ROP(object):
             if set(pack(addr)) & self._badchars:
                 continue
 
+            ret_move = 0
             sp_move = 0
             regs = []
             for insn in insns:
@@ -1396,6 +1426,9 @@ class ROP(object):
                     sp_move += arg
                     regs.append(arg)
                 elif ret.match(insn):
+                    m = ret.match(insn)
+                    arg = int(m.group(1), 0) if m.group(1) else 0
+                    ret_move = arg
                     sp_move += context.bytes
                 elif leave.match(insn):
                     #
@@ -1412,7 +1445,7 @@ class ROP(object):
 
             # Permit duplicates, because blacklisting bytes in the gadget
             # addresses may result in us needing the dupes.
-            self.gadgets[addr] = Gadget(addr, insns, regs, sp_move)
+            self.gadgets[addr] = Gadget(addr, insns, regs, sp_move, ret_move)
 
             # Don't use 'pop esp' for pivots
             if not set(['rsp', 'esp']) & set(regs):
@@ -1438,7 +1471,7 @@ class ROP(object):
         for addr, gadget in self.gadgets.items():
             addr_bytes = set(pack(gadget.address))
             if addr_bytes & self._badchars:     continue
-            if gadget.insns[-1] != 'ret':        continue
+            if not gadget.insns[-1].startswith('ret'):        continue
             if gadget.move < move:               continue
             if not (regs <= set(gadget.regs)):   continue
             yield gadget
