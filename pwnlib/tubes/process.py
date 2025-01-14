@@ -1259,7 +1259,10 @@ class process(tube):
 
             >>> from pwn import *
             >>> p = process(['cat'])
-            >>> libc_size = p.lib_size(p.libc.path)
+            >>> libc = p.libc
+            >>> p.libs()
+            {'/libc': 1234}
+            >>> libc_size = p.lib_size(libc.path)
             >>> hex(libc_size) # doctest: +SKIP
             '0x1d5000'
             >>> libc_mappings = p.libc_mapping(single=False)
