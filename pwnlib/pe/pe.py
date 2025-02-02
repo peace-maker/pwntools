@@ -21,7 +21,7 @@ log = getLogger(__name__)
 __all__ = ['PE']
 
 class PE(PEFile, Binary):
-    def __init__(self, path, checksec=True, load_pdb=True):
+    def __init__(self, path, checksec=True, load_pdb=False):
         super(PE,self).__init__(path)
 
         # File handle to mimic ELF class

@@ -2,9 +2,9 @@ from __future__ import absolute_import
 from __future__ import division
 
 import argparse
-import sys
 
 from pwn import *
+from pwnlib.binary import Binary
 from pwnlib.commandline import common
 
 parser = common.parser_commands.add_parser(
@@ -34,7 +34,7 @@ def main(args):
 
     for f in files:
         try:
-            e = ELF(f)
+            e = Binary.from_path(f)
         except Exception as e:
             print("{name}: {error}".format(name=f, error=e))
 

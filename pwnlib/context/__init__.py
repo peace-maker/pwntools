@@ -364,6 +364,9 @@ class ContextType(object):
         'endian': 'little',
         'gdbinit': "",
         'gdb_binary': "",
+        'windbg_binary': "",
+        'x64dbg_binary': "",
+        'debugger_selection': "",
         'kernel': None,
         'local_libcdb': "/var/lib/libc-database",
         'log_level': logging.INFO,
@@ -452,6 +455,9 @@ class ContextType(object):
     }
 
     valid_signed = sorted(signednesses)
+
+    #: Valid values for :attr:`debugger_selection`
+    debugger_choices = ['gdb', 'windbg', 'x64dbg']
 
     def __init__(self, **kwargs):
         """
@@ -1562,6 +1568,54 @@ class ContextType(object):
 
         Default value is ``""``.
         """
+        return str(value)
+
+    @_validator
+    def windbg_binary(self, value):
+        """Path to the binary that is used when running WinDBG locally.
+
+        This is useful when you have multiple versions of WinDBG installed or the WinDBG binary is
+        called something different.
+
+        If set to an empty string, pwntools will try to search for a reasonable WinDBG binary from 
+        the path.
+
+        Default value is ``""``.
+        """
+        return str(value)
+
+    @_validator
+    def x64dbg_binary(self, value):
+        """Path to the binary that is used when running x64dbg locally.
+
+        Should be set to the x96dbg.exe launcher binary to handle 32-bit and 64-bit binaries.
+
+        This is useful when you have multiple versions of x64dbg installed or the x64dbg binary is
+        called something different.
+
+        If set to an empty string, pwntools will try to search for a reasonable x64dbg binary from 
+        the path.
+
+        Default value is ``""``.
+        """
+        return str(value)
+
+    @_validator
+    def debugger_selection(self, value):
+        """Type of debugger to use when running locally.
+
+        Possible values are:
+
+        - ``gdb``: Use GDB as the debugger.
+        - ``windbg``: Use WinDBG as the debugger.
+        - ``x64dbg``: Use x64dbg as the debugger.
+
+        Defaults to ``windbg`` on Windows and ``gdb`` otherwise.
+        
+        Default value is ``""``.
+        """
+        if value not in self.debugger_choices:
+            raise AttributeError("debugger_selection must be one of %r" % sorted(self.debugger_choices))
         return str(value)
 
     @_validator

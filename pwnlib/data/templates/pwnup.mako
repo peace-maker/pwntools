@@ -5,16 +5,18 @@ import sys
 
 from pwnlib.context import context as ctx
 from pwnlib.elf.elf import ELF
+from pwnlib.binary import Binary
 from pwnlib.util.sh_string import sh_string
 from elftools.common.exceptions import ELFError
+from pefile import PEFormatError
 
 argv = list(sys.argv)
 argv[0] = os.path.basename(argv[0])
 
 try:
     if binary:
-       ctx.binary = ELF(binary, checksec=False)
-except ELFError:
+       ctx.binary = Binary.from_path(binary, checksec=False)
+except (ELFError, PEFormatError):
     pass
 
 if not binary:
@@ -45,7 +47,11 @@ from pwn import *
 # Set up pwntools for the correct architecture
 %endif
 %if ctx.binary or not host:
-exe = context.binary = ELF(args.EXE or ${binary_repr})
+%if not ctx.binary or isinstance(ctx.binary, ELF):
+    exe = context.binary = ELF(args.EXE or ${binary_repr})
+%else:
+    exe = context.binary = PE(args.EXE or ${binary_repr})
+%endif
 <% binary_repr = 'exe.path' %>
 %else:
 context.update(arch='i386')
@@ -113,7 +119,11 @@ else:
 def start_local(argv=[], *a, **kw):
     '''Execute the target binary locally'''
     if args.GDB:
+%if not ctx.binary or isinstance(ctx.binary, ELF)
         return gdb.debug([${binary_repr}] + argv, gdbscript=gdbscript, *a, **kw)
+%else:
+        return windbg.debug([${binary_repr}] + argv, dbgscript=gdbscript, *a, **kw)
+%endif
     else:
         return process([${binary_repr}] + argv, *a, **kw)
 
