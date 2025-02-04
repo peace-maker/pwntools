@@ -148,6 +148,7 @@ import random
 import re
 import six
 import six.moves
+import sys
 import socket
 import tempfile
 from threading import Event
@@ -368,24 +369,25 @@ def _gdbserver_port(gdbserver, ssh):
 
     # Process /bin/bash created; pid = 14366
     # Listening on port 34816
-    process_created = gdbserver.recvline(timeout=3)
+    if sys.platform != 'win32':
+        process_created = gdbserver.recvline(timeout=3)
 
-    if not process_created:
-        log.error(
-            'No output from gdbserver after 3 seconds. Try setting the SHELL=/bin/sh '
-            'environment variable or using the env={} argument if you are affected by '
-            'https://sourceware.org/bugzilla/show_bug.cgi?id=26116'
-        )
+        if not process_created:
+            log.error(
+                'No output from gdbserver after 3 seconds. Try setting the SHELL=/bin/sh '
+                'environment variable or using the env={} argument if you are affected by '
+                'https://sourceware.org/bugzilla/show_bug.cgi?id=26116'
+            )
 
-    if process_created.startswith(b'ERROR:'):
-        raise ValueError(
-            'Failed to spawn process under gdbserver. gdbserver error message: %r' % process_created
-        )
+        if process_created.startswith(b'ERROR:'):
+            raise ValueError(
+                'Failed to spawn process under gdbserver. gdbserver error message: %r' % process_created
+            )
 
-    try:
-        gdbserver.pid   = int(process_created.split()[-1], 0)
-    except ValueError:
-        log.error('gdbserver did not output its pid (maybe chmod +x?): %r', process_created)
+        try:
+            gdbserver.pid   = int(process_created.split()[-1], 0)
+        except ValueError:
+            log.error('gdbserver did not output its pid (maybe chmod +x?): %r', process_created)
 
     listening_on = b''
     while b'Listening' not in listening_on:
@@ -653,6 +655,9 @@ def debug(args, gdbscript=None, gdb_args=None, exe=None, ssh=None, env=None, por
     if context.noptrace:
         log.warn_once("Skipping debugger since context.noptrace==True")
         return runner(args, executable=exe, env=env)
+    
+    if sys.platform == 'win32':
+        args[0] = exe
 
     if ssh or context.native or (context.os == 'android'):
         if len(args) > 0 and which(packing._decode(args[0])) == packing._decode(exe):
@@ -703,7 +708,7 @@ def debug(args, gdbscript=None, gdb_args=None, exe=None, ssh=None, env=None, por
     else:
         port = qemu_port
 
-    host = '127.0.0.1'
+    host = 'localhost' if sys.platform == 'win32' else '127.0.0.1'
     if not ssh and context.os == 'android':
         host = context.adb_host
 
