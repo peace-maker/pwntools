@@ -380,6 +380,12 @@ def run_in_new_terminal(command, terminal=None, args=None, kill_at_exit=True, pr
                     args.extend(['wsl.exe', '-d', distro_name, '--cd', current_dir, 'bash', '-c'])
                 else:
                     args.extend(['bash.exe', '-c'])
+    
+    if not terminal and sys.platform == 'win32':
+        terminal    = 'cmd.exe'
+        args        = ['/c', 'start']
+        if 'WT_SESSION' in os.environ and which('wt.exe'):
+            args.extend(['wt.exe', '-w', '0', 'split-pane'])
 
     if not terminal:
         log.error('Could not find a terminal binary to use. Set context.terminal to your terminal.')
@@ -420,6 +426,8 @@ os.execve({argv0!r}, {argv!r}, os.environ)
           tmp.write(script)
           tmp.flush()
           os.chmod(tmp.name, 0o700)
+          if sys.platform == 'win32':
+            argv += [sys.executable]
           argv += [tmp.name]
 
 
@@ -445,7 +453,7 @@ end tell
     # cmd.exe does not support WSL UNC paths as working directory
     # so it gets reset to %WINDIR% before starting wsl again.
     # Set the working directory correctly in WSL.
-    elif terminal == 'cmd.exe':
+    elif terminal == 'cmd.exe' and sys.platform != 'win32':
         argv[-1] = "cd '{}' && {}".format(os.getcwd(), argv[-1])
 
     log.debug("Launching a new terminal: %r" % argv)
@@ -486,7 +494,7 @@ end tell
                 pid = None
                 log.error("Json decode failed while parsing 'kitten @ ls' output (%r) (error: %r)", lsout, e)
             
-    elif terminal == 'cmd.exe':
+    elif terminal == 'cmd.exe' and sys.platform != 'win32':
         # p.pid is cmd.exe's pid instead of the WSL process we want to start eventually.
         # I don't know how to trace the execution through Windows and back into the WSL2 VM.
         # Do a best guess by waiting for a new process matching the command to be run.
