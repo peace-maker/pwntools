@@ -130,26 +130,46 @@ def binary():
     """binary() -> str
 
     Returns the path to the debugger binary depending on the context.
-    :attr:`.context.debugger_selection` is used to determine which debugger to use.
+    :attr:`.context.debugger` is used to determine which debugger to use.
 
     Returns:
         str: Path to the appropriate debugger binary to use.
     """
-    if context.debugger_selection == 'x64dbg':
-        return _lookup_x64dbg()
+    if context.debugger == '':
+        for debugger in context.debugger_choices:
+            with context.local(debugger=debugger):
+                try:
+                    return binary()
+                except Exception:
+                    pass
 
-    if not context.debugger_selection or context.debugger_selection == 'windbg':
+    if context.debugger == 'x64dbg':
+        return _lookup_x64dbg()
+    
+    if context.debugger == 'windbg':
         if context.windbg_binary:
             windbg = misc.which(context.windbg_binary)
             if not windbg:
                 log.warn_once('Path to WinDBG binary `{}` not found'.format(context.windbg_binary))
             return windbg
 
-        windbg = misc.which('windbgx.exe') or misc.which('windbg.exe')
+        windbg = misc.which('windbg.exe')
         if not windbg:
             log.error('windbg is not installed or in system PATH')
         return windbg
-    log.error('Invalid debugger selection: %s', context.debugger_selection)
+
+    if context.debugger == 'windbgx':
+        if context.windbgx_binary:
+            windbg = misc.which(context.windbgx_binary)
+            if not windbg:
+                log.warn_once('Path to WinDBGx binary `{}` not found'.format(context.windbgx_binary))
+            return windbg
+
+        windbg = misc.which('windbgx.exe')
+        if not windbg:
+            log.error('windbgx is not installed or in system PATH')
+        return windbg
+    log.error('Invalid debugger selection: %s', context.debugger)
 
 def _lookup_x64dbg():
     if context.x64dbg_binary:

@@ -366,7 +366,7 @@ class ContextType(object):
         'gdb_binary': "",
         'windbg_binary': "",
         'x64dbg_binary': "",
-        'debugger_selection': "",
+        'debugger': "",
         'kernel': None,
         'local_libcdb': "/var/lib/libc-database",
         'log_level': logging.INFO,
@@ -456,8 +456,8 @@ class ContextType(object):
 
     valid_signed = sorted(signednesses)
 
-    #: Valid values for :attr:`debugger_selection`
-    debugger_choices = ['gdb', 'windbg', 'x64dbg']
+    #: Valid values for :attr:`debugger`
+    debugger_choices = ['gdb', 'windbg', 'windbgx', 'x64dbg']
 
     def __init__(self, **kwargs):
         """
@@ -1585,6 +1585,20 @@ class ContextType(object):
         return str(value)
 
     @_validator
+    def windbgx_binary(self, value):
+        """Path to the binary that is used when running WinDBGX locally.
+
+        This is useful when you have multiple versions of WinDBGX installed or the WinDBGX binary is
+        called something different.
+
+        If set to an empty string, pwntools will try to search for a reasonable WinDBGX binary from 
+        the path.
+
+        Default value is ``""``.
+        """
+        return str(value)
+
+    @_validator
     def x64dbg_binary(self, value):
         """Path to the binary that is used when running x64dbg locally.
 
@@ -1601,7 +1615,7 @@ class ContextType(object):
         return str(value)
 
     @_validator
-    def debugger_selection(self, value):
+    def debugger(self, value):
         """Type of debugger to use when running locally.
 
         Possible values are:
@@ -1615,7 +1629,7 @@ class ContextType(object):
         Default value is ``""``.
         """
         if value not in self.debugger_choices:
-            raise AttributeError("debugger_selection must be one of %r" % sorted(self.debugger_choices))
+            raise AttributeError("debugger must be one of %r" % sorted(self.debugger_choices))
         return str(value)
 
     @_validator
