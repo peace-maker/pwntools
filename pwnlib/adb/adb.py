@@ -319,12 +319,12 @@ class AdbDevice(Device):
             emulator, port = self.serial.split('-')
             port = int(port)
             try:
-                with remote('localhost', port, level='error') as r:
+                with tubes.remote.remote('localhost', port, level='error') as r:
                     r.recvuntil('OK')
                     r.recvline() # Rest of the line
                     r.sendline('avd name')
                     self.avd = r.recvline().strip()
-            except:
+            except PwnlibException:
                 pass
 
         self._initialized = True
@@ -1194,7 +1194,7 @@ class Kernel(object):
             'Nexus 7': 'oem uart-on',
         }
 
-        with log.waitfor('Enabling kernel UART'):
+        with log.waitfor('Enabling kernel UART') as w:
 
             if model not in known_commands:
                 log.error("Device UART is unsupported.")
@@ -1267,7 +1267,7 @@ class Property(object):
             return str(self) == other
         return super(Property, self).__eq__(other)
 
-    def __hash__(self, other):
+    def __hash__(self):
         # Allow hash indices matching on the property
         return hash(self._name)
 

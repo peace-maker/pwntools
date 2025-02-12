@@ -183,8 +183,8 @@ class BitPolynom(object):
     def __hash__(self):
         return int(self).__hash__()
 
-    def __cmp__(self, other):
-        return int(self).__cmp__(int(other))
+    def __lt__(self, other):
+        return int(self).__lt__(int(other))
 
     def __lshift__(self, other):
         return BitPolynom(int(self) << int(other))

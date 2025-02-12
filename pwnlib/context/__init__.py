@@ -1008,10 +1008,7 @@ class ContextType(object):
         except AttributeError:  pass
 
         # Otherwise, fail
-        try:
-            level_names = logging._levelToName.values()
-        except AttributeError:
-            level_names = filter(lambda x: isinstance(x,str), logging._levelNames)
+        level_names = logging._levelToName.values()
         permitted = sorted(level_names)
         raise AttributeError('log_level must be an integer or one of %r' % permitted)
 
@@ -1264,10 +1261,6 @@ class ContextType(object):
         if isinstance(value, (bytes, six.text_type)):
             return [value]
         return value
-
-    @property
-    def abi(self):
-        return self._abi
 
     @_validator
     def proxy(self, proxy):

@@ -102,10 +102,6 @@ class AppendedArgument(Unresolved):
     #: The size of the fully-resolved argument, in bytes
     size = 0
 
-    #: Absolute address of the target data in memory.
-    #: When modified, updates recursively.
-    address = 0
-
     def __init__(self, value, address = 0):
         if not isinstance(value, (list, tuple)):
             value = [value]
@@ -131,6 +127,9 @@ class AppendedArgument(Unresolved):
 
     @property
     def address(self):
+        """Absolute address of the target data in memory.
+        When modified, updates recursively.
+        """
         return self._address
 
     @address.setter
@@ -150,10 +149,10 @@ class AppendedArgument(Unresolved):
 
         class LocalAddress(object):
 
-            def __enter__(*a, **kw):
+            def __enter__(self):
                 self.address = address
 
-            def __exit__(*a, **kw):
+            def __exit__(self, exc_type, exc_value, traceback):
                 self.address = original
 
         return LocalAddress()

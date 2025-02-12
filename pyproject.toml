@@ -85,3 +85,8 @@ source = [
     "~/.cache/.pwntools-cache-3.13/",
 ]
 disable_warnings = ["module-not-imported"]
+
+[tool.pylint.TYPECHECK]
+ignored-modules = ["pwnlib.util.hashes"]
+ignored-classes = ["pwnlib.term.text", "pwnlib.constants", "pwnlib.shellcraft"]
+generated-members = ["pwnlib.util.packing._[pu][8|16|32|64][bl][su]"]

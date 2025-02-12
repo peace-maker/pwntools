@@ -6,7 +6,6 @@ from pwn import *
 from pwnlib.commandline import common
 from pwnlib.util.misc import which, parse_ldd_output, write
 
-from sys import stderr
 from mako.lookup import TemplateLookup, Template
 
 parser = common.parser_commands.add_parser(

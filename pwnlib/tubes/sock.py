@@ -221,7 +221,7 @@ class sock(tube):
         elif fam.lower() in ['ipv6', 'ip6', 'v6', '6']:
             fam = socket.AF_INET6
         else:
-            self.error("%s(): socket family %r is not supported",
+            log.error("%s(): socket family %r is not supported",
                        cls.__name__,
                        fam)
 
@@ -236,7 +236,7 @@ class sock(tube):
         elif typ == "udp":
             typ = socket.SOCK_DGRAM
         else:
-            self.error("%s(): socket type %r is not supported",
+            log.error("%s(): socket type %r is not supported",
                        cls.__name__,
                        typ)
 

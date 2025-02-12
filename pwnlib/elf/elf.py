@@ -205,7 +205,6 @@ class ELF(ELFFile):
     plt = {}
     functions = {}
     endian = 'little'
-    address = 0x400000
     linker = None
 
     # Whether to fill gaps in memory with zeroed pages

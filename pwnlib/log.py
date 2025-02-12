@@ -95,14 +95,12 @@ from __future__ import absolute_import
 from __future__ import division
 
 import logging
-import os
 import random
-import re
 import six
 import string
-import sys
 import threading
 import time
+from typing import NoReturn
 
 from pwnlib import term
 from pwnlib.config import register_config
@@ -286,7 +284,7 @@ class Logger(object):
     def _getlevel(self, levelString):
         if isinstance(levelString, six.integer_types):
             return levelString
-        return logging._levelNames[levelString.upper()]
+        return logging._levelToName[levelString.upper()]
 
     def _log(self, level, msg, args, kwargs, msgtype, progress = None):
         # Logs are strings, not bytes.  Handle Python3 bytes() objects.
@@ -429,6 +427,7 @@ class Logger(object):
         return self.warning(*args, **kwargs)
 
     def error(self, message, *args, **kwargs):
+        # type: (...) -> NoReturn
         """error(message, *args, **kwargs)
 
         To be called outside an exception handler.
@@ -439,6 +438,7 @@ class Logger(object):
         raise PwnlibException(message % args)
 
     def exception(self, message, *args, **kwargs):
+        # type: (...) -> NoReturn
         """exception(message, *args, **kwargs)
 
         To be called from an exception handler.
@@ -447,7 +447,7 @@ class Logger(object):
         """
         kwargs["exc_info"] = 1
         self._log(logging.ERROR, message, args, kwargs, 'exception')
-        raise
+        raise  # pylint: disable=misplaced-bare-raise
 
     def critical(self, message, *args, **kwargs):
         """critical(message, *args, **kwargs)

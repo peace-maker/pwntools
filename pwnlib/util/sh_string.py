@@ -274,7 +274,7 @@ def test_all():
     everything_2 = b''.join(six.int2byte(c) * 2 for c in range(1,256)) ##
     test(everything_2)
 
-    test(randoms(1000, everything_1))
+    test(fiddling.randoms(1000, everything_1))
 
 
 def test(original):

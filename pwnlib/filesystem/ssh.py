@@ -6,12 +6,8 @@ Emulates pathlib as much as possible, but does so through duck typing.
 """
 import os
 import six
-import sys
-import tempfile
-import time
 
 from pwnlib.context import context
-from pwnlib.util.misc import read, write
 from pwnlib.util.packing import _encode, _decode
 
 if six.PY3:
@@ -129,11 +125,11 @@ class SSHPath(PosixPath):
 
         return True
 
-    def __hash__(*a, **kw): ""; raise NotImplementedError
-    def __lt__(*a, **kw): ""; raise NotImplementedError
-    def __le__(*a, **kw): ""; raise NotImplementedError
-    def __gt__(*a, **kw): ""; raise NotImplementedError
-    def __ge__(*a, **kw): ""; raise NotImplementedError
+    def __hash__(self): raise NotImplementedError
+    def __lt__(self, other): raise NotImplementedError
+    def __le__(self, other): raise NotImplementedError
+    def __gt__(self, other): raise NotImplementedError
+    def __ge__(self, other): raise NotImplementedError
 
     @property
     def anchor(self):
@@ -556,7 +552,7 @@ class SSHPath(PosixPath):
         """
         self.ssh.sftp.chmod(self.path, mode)
 
-    def lchmod(*a, **kw):
+    def lchmod(self, mode):
         raise NotImplementedError()
 
     def unlink(self, missing_ok=False):

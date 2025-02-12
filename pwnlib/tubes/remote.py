@@ -154,12 +154,12 @@ class remote(sock):
 class tcp(remote):
     __doc__ = remote.__doc__
     def __init__(self, host, port, *a, **kw):
-        return super(tcp, self).__init__(host, port, typ="tcp", *a, **kw)
+        super(tcp, self).__init__(host, port, typ="tcp", *a, **kw)
 
 class udp(remote):
     __doc__ = remote.__doc__
     def __init__(self, host, port, *a, **kw):
-        return super(udp, self).__init__(host, port, typ="udp", *a, **kw)
+        super(udp, self).__init__(host, port, typ="udp", *a, **kw)
 
 class connect(remote):
     __doc__ = remote.__doc__

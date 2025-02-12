@@ -637,7 +637,7 @@ def make_unpacker(word_size = None, endianness = None, sign = None, **kwargs):
             (64, 1, 1): _u64bs,
         }[word_size, endianness, sign]
     else:
-        return lambda number: unpack(number, word_size, endianness, sign)
+        return lambda number: unpack(number, word_size, endianness=endianness, sign=sign)
 
 def _fit(pieces, preprocessor, packer, filler, stacklevel=1):
 
@@ -1024,6 +1024,7 @@ def dd(dst, src, count = 0, skip = 0, seek = 0, truncate = False):
     # Re-open file objects to make sure we have the mode right
     if hasattr(src, 'name'):
         src = open(src.name, 'rb')
+    real_dst = None
     if hasattr(dst, 'name'):
         real_dst = dst
         dst = open(dst.name, 'rb+')

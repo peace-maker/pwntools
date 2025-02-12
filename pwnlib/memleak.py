@@ -544,7 +544,11 @@ class MemLeak(object):
         if None in (stop, start):
             log.error("Cannot perform unbounded leaks")
 
-        return self.n(start, stop-start)[::step]
+        leaked_data = self.n(start, stop-start)
+        if leaked_data is None:
+            return None
+
+        return leaked_data[::step]
 
     def compare(self, address, bts):
         for i, byte in enumerate(bytearray(bts)):

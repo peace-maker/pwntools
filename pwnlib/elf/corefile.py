@@ -1134,8 +1134,8 @@ class Corefile(ELF):
         return getattr(self.prstatus.pr_reg, attribute)
 
     # Override routines which don't make sense for Corefiles
-    def _populate_got(*a): pass
-    def _populate_plt(*a): pass
+    def _populate_got(self): pass
+    def _populate_plt(self): pass
 
 class Core(Corefile):
     """Alias for :class:`.Corefile`"""

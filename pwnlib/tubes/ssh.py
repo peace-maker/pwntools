@@ -484,11 +484,12 @@ class ssh_listener(sock):
 
         self.host = parent.host
 
+
         try:
             self.port = parent.transport.request_port_forward(bind_address, port)
 
         except Exception:
-            h.failure('Failed create a port forwarding')
+            self.exception('Failed create a port forwarding to %s:%d via %s' % (bind_address, port, self.host))
             raise
 
         def accepter():
@@ -990,6 +991,7 @@ class ssh(Timeout, Logger):
 
             # If an error occurred, try to grab as much output
             # as we can.
+            error_message = b'<no error message>'
             if result != 1:
                 error_message = python.recvrepeat(timeout=1)
 
