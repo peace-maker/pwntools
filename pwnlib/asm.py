@@ -60,7 +60,7 @@ from pwnlib.context import LocalContext
 from pwnlib.context import context
 from pwnlib.log import getLogger
 from pwnlib.util.hashes import sha1sumhex
-from pwnlib.util.packing import _encode
+from pwnlib.util.packing import _encode, p32, p64
 from pwnlib.version import __version__
 
 log = getLogger(__name__)
@@ -730,6 +730,80 @@ def make_macho(data, is_shellcode=False):
 
     return step3
 
+@LocalContext
+def make_pe_from_assembly(shellcode, vma=None):
+    return make_pe(asm(shellcode), vma)
+
+@LocalContext
+def make_pe(data, vma=None):
+    if context.arch not in ('i386', 'amd64'):
+        raise Exception("Unsupported architecture for PE generation: %s" % context.arch)
+
+    if vma is None:
+        vma = 0x10000000
+    hdrsize = 0xe0
+    if context.arch == 'amd64':
+        hdrsize = 0xf0
+    filesize = hdrsize + len(data)
+    pe_template = b"MZ" + b"\x00\x00"*29 + b"\x40\x00\x00\x00"
+    pe_template += b"PE\x00\x00"  # PE signature
+    if context.arch == 'amd64':  # Machine type
+        pe_template += b"\x64\x86"
+    elif context.arch == 'i386':
+        pe_template += b"\x4c\x01"
+    pe_template += b"\x01\x00"  # Number of sections
+    pe_template += b"\x00\x00\x00\x00" * 3
+    if context.arch == 'amd64':
+        pe_template += b"\x70\x00"  # Size of optional header
+        pe_template += b"\x23\x00"  # Characteristics (no relocations, executable, large address aware)
+        pe_template += b"\x0b\x02"  # Magic (PE32+)
+    elif context.arch == 'i386':
+        pe_template += b"\x60\x00"  # Size of optional header
+        pe_template += b"\x03\x01"  # Characteristics (no relocations, executable, 32 bit)
+        pe_template += b"\x0b\x01"  # Magic (PE32)
+    pe_template += b"\x00" * 14
+    pe_template += p32(hdrsize)  # Addressof entry point
+    pe_template += b"\x00\x00\x00\x00"  # Base of code (will be set later)
+    if context.arch == 'amd64':
+        pe_template += p64(vma)  # Image base
+    elif context.arch == 'i386':
+        pe_template += b"\x00\x00\x00\x00"  # Base of data (will be set later)
+        pe_template += p32(vma)
+    pe_template += b"\x01\x00\x00\x00"  # Section alignment
+    pe_template += b"\x01\x00\x00\x00"  # File alignment
+    pe_template += b"\x00\x00\x00\x00"  # operating system version
+    pe_template += b"\x00\x00\x00\x00"  # Image version
+    pe_template += b"\x04\x00"  # Major subsystem version
+    pe_template += b"\x00\x00"  # Minor subsystem version
+    pe_template += b"\x00\x00\x00\x00"  # Win32 version value
+    pe_template += p32(filesize)  # Size of image
+    pe_template += p32(hdrsize)  # Size of headers
+    pe_template += b"\x00\x00\x00\x00"  # Checksum
+    pe_template += b"\x03\x00"  # Subsystem (Win32 CUI)
+    pe_template += b"\x00\x00"  # Dll characteristics
+    pe_template += b"\x00\x00\x01\x00".ljust(context.bytes, b"\x00")  # Size of stack reserve
+    pe_template += b"\x00\x01\x00\x00".ljust(context.bytes, b"\x00")  # Size of stack commit
+    pe_template += b"\x00\x00\x01\x00".ljust(context.bytes, b"\x00")  # Size of heap reserve
+    pe_template += b"\x00\x01\x00\x00".ljust(context.bytes, b"\x00")  # Size of heap commit
+    pe_template += b"\x00\x00\x00\x00"  # Loader flags
+    pe_template += b"\x00\x00\x00\x00"  # Number of data directories
+    pe_template += b".text\x00\x00\x00"  # Section name
+    pe_template += p32(len(data))  # Virtual size of section
+    pe_template += p32(hdrsize)  # Virtual address of section (will be set later)
+    pe_template += p32(len(data))  # Size of raw data
+    pe_template += p32(hdrsize)  # Pointer to raw data (will be set later)
+    pe_template += b"\x00\x00\x00\x00"  # Pointer to relocations
+    pe_template += b"\x00\x00\x00\x00"  # Pointer to line numbers
+    pe_template += b"\x00\x00"  # Number of relocations
+    pe_template += b"\x00\x00"  # Number of line numbers
+    pe_template += b"\x20\x00\x00\x60"  # Characteristics (code section, executable, readable)
+    pe_template += data
+
+    tmpdir = tempfile.mkdtemp(prefix = 'pwn-asm-')
+    step1 = path.join(tmpdir, 'step1.exe')
+    with open(step1, 'wb') as f:
+        f.write(pe_template)
+    return step1
 
 @LocalContext
 def asm(shellcode, vma = 0, extract = True, shared = False):

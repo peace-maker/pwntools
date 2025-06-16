@@ -355,9 +355,15 @@ def main(args):
 
     if args.debug:
         if not args.avoid:
-            proc = gdb.debug_assembly(assembly, arch=arch, vma=vma)
+            if sys.platform == 'win32':
+                proc = windbg.debug_assembly(assembly, arch=arch, vma=vma)
+            else:
+                proc = gdb.debug_assembly(assembly, arch=arch, vma=vma)
         else:
-            proc = gdb.debug_shellcode(code, arch=arch, vma=vma)
+            if sys.platform == 'win32':
+                proc = windbg.debug_shellcode(code, arch=arch, vma=vma)
+            else:
+                proc = gdb.debug_shellcode(code, arch=arch, vma=vma)
         proc.interactive()
         sys.exit(0)
 

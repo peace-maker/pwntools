@@ -66,6 +66,8 @@ import subprocess
 import six
 
 from pwnlib import tubes
+from pwnlib.asm import make_pe
+from pwnlib.asm import make_pe_from_assembly
 from pwnlib.context import LocalContext
 from pwnlib.context import context
 from pwnlib.log import getLogger
@@ -75,6 +77,66 @@ from pwnlib.util import proc
 log = getLogger(__name__)
 
 CREATE_SUSPENDED = 0x00000004
+
+
+@LocalContext
+def debug_assembly(asm, windbgscript=None, vma=None):
+    r"""debug_assembly(asm, windbgscript=None, vma=None, api=False) -> tube
+
+    Creates a PE file, and launches it under a debugger.
+
+    This is identical to debug_shellcode, except that
+    any defined symbols are available in WinDbg, and it
+    saves you the explicit call to asm().
+
+    Arguments:
+        asm(str): Assembly code to debug
+        windbgscript(str): Script to run in WinDbg
+        vma(int): Base address to load the shellcode at
+        \**kwargs: Override any :obj:`pwnlib.context.context` values.
+
+    Returns:
+        :class:`.process`
+
+    Example:
+
+    >>> assembly = shellcraft.echo("Hello world!\n")
+    >>> io = windbg.debug_assembly(assembly)
+    >>> io.recvline()
+    b'Hello world!\n'
+    """
+    tmp_pe = make_pe_from_assembly(asm, vma=vma)
+    atexit.register(lambda: os.unlink(tmp_pe))
+    return debug(tmp_pe, windbgscript=windbgscript, arch=context.arch)
+
+@LocalContext
+def debug_shellcode(data, windbgscript=None, vma=None):
+    r"""debug_shellcode(data, windbgscript=None, vma=None, api=False) -> tube
+    Creates a PE file, and launches it under a debugger.
+
+    Arguments:
+        data(str): Assembled shellcode bytes
+        windbgscript(str): Script to run in WinDbg
+        vma(int): Base address to load the shellcode at
+        \**kwargs: Override any :obj:`pwnlib.context.context` values.
+
+    Returns:
+        :class:`.process`
+
+    Example:
+
+    >>> assembly = shellcraft.echo("Hello world!\n")
+    >>> shellcode = asm(assembly)
+    >>> io = windbg.debug_shellcode(shellcode)
+    >>> io.recvline()
+    b'Hello world!\n'
+    """
+    if isinstance(data, six.text_type):
+        log.error("Shellcode cannot be unicode.  Did you mean debug_assembly?")
+    tmp_pe = make_pe(data, vma=vma)
+    atexit.register(lambda: os.unlink(tmp_pe))
+    return debug(tmp_pe, windbgscript=windbgscript, arch=context.arch)
+
 
 @LocalContext
 def debug(args, dbgscript=None, exe=None, env=None, creationflags=0, **kwargs):

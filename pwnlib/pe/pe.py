@@ -9,8 +9,9 @@ from pefile import IMAGE_CHARACTERISTICS
 from pefile import MACHINE_TYPE
 from pefile import SECTION_CHARACTERISTICS
 
+from pwnlib.asm import make_pe, make_pe_from_assembly
 from pwnlib.binary import Binary, dotdict
-from pwnlib.context import context
+from pwnlib.context import context, LocalContext
 from pwnlib.log import getLogger
 from pwnlib.pe.pdb import PDB
 from pwnlib.term import text
@@ -118,6 +119,53 @@ class PE(PEFile, Binary):
                     log.warn('PDB file not loaded %s', self.pdb.filename)
             except Exception as e:
                 log.debug('PDB file failed to load: %s', str(e))
+
+    
+    @staticmethod
+    @LocalContext
+    def from_assembly(assembly, *a, **kw):
+        """from_assembly(assembly) -> PE
+
+        Given an assembly listing, return a fully loaded PE object
+        which contains that assembly at its entry point.
+
+        Arguments:
+
+            assembly(str): Assembly language listing
+            vma(int): Address of the entry point and the module's base address.
+
+        Example:
+
+            >>> e = ELF.from_assembly('nop; foo: int 0x80', vma = 0x400000)
+            >>> e.symbols['foo'] = 0x400001
+            >>> e.disasm(e.entry, 1)
+            '  400000:       90                      nop'
+            >>> e.disasm(e.symbols['foo'], 2)
+            '  400001:       cd 80                   int    0x80'
+        """
+        return PE(make_pe_from_assembly(assembly, *a, **kw))
+
+    @staticmethod
+    @LocalContext
+    def from_bytes(bytes, *a, **kw):
+        r"""from_bytes(bytes) -> PE
+
+        Given a sequence of bytes, return a fully loaded PE object
+        which contains those bytes at its entry point.
+
+        Arguments:
+
+            bytes(str): Shellcode byte string
+            vma(int): Desired base address for the PE.
+
+        Example:
+
+            >>> e = PE.from_bytes(b'\x90\xcd\x80', vma=0xc000)
+            >>> print(e.disasm(e.entry, 3))
+                c000:       90                      nop
+                c001:       cd 80                   int    0x80
+        """
+        return PE(make_pe(bytes, *a, **kw))
 
     def debug(self, argv=[], *a, **kw):
         """debug(argv=[], *a, **kw) -> tube

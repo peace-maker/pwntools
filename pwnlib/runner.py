@@ -40,6 +40,12 @@ def run_assembly(assembly):
         from pwnlib.asm import make_macho_from_assembly
         return process(make_macho_from_assembly(assembly))
 
+    if context.os == 'windows':
+        if sys.platform != 'win32':
+            raise ValueError('Running PE only supported on Windows machines.')
+        from pwnlib.asm import make_pe_from_assembly
+        return process(make_pe_from_assembly(bytes))
+
     return ELF.from_assembly(assembly).process()
 
 @LocalContext
@@ -67,6 +73,12 @@ def run_shellcode(bytes, **kw):
                              '- https://github.com/sickcodes/Docker-OSX')
         from pwnlib.asm import make_macho
         return process(make_macho(bytes))
+
+    if context.os == 'windows':
+        if sys.platform != 'win32':
+            raise ValueError('Running PE only supported on Windows machines.')
+        from pwnlib.asm import make_pe
+        return process(make_pe(bytes, **kw))
 
     return ELF.from_bytes(bytes, **kw).process()
 

@@ -370,6 +370,8 @@ class process(tube):
                                                  creationflags = creationflags)
                     break
                 except OSError as exception:
+                    if sys.platform == 'win32':
+                        raise
                     if exception.errno != errno.ENOEXEC:
                         raise
                     prefixes.append(self.__on_enoexec(exception))
