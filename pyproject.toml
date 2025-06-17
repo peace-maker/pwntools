@@ -54,7 +54,7 @@ dependencies = [
     "unix-ar",
     "zstandard",
     "pefile",
-    "pdbparse",
+    "pdbparse @ git+https://github.com/moyix/pdbparse.git@0ef7e929a7f98f4cb7c10f8b0a956eab79c43012",
     "minidump",
 ]
 
