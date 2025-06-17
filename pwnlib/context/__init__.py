@@ -1572,12 +1572,12 @@ class ContextType(object):
 
     @_validator
     def windbg_binary(self, value):
-        """Path to the binary that is used when running WinDBG locally.
+        """Path to the binary that is used when running WinDbg locally.
 
-        This is useful when you have multiple versions of WinDBG installed or the WinDBG binary is
+        This is useful when you have multiple versions of WinDbg installed or the WinDbg binary is
         called something different.
 
-        If set to an empty string, pwntools will try to search for a reasonable WinDBG binary from 
+        If set to an empty string, pwntools will try to search for a reasonable WinDbg binary from 
         the path.
 
         Default value is ``""``.
@@ -1586,12 +1586,12 @@ class ContextType(object):
 
     @_validator
     def windbgx_binary(self, value):
-        """Path to the binary that is used when running WinDBGX locally.
+        """Path to the binary that is used when running WinDbgX locally.
 
-        This is useful when you have multiple versions of WinDBGX installed or the WinDBGX binary is
+        This is useful when you have multiple versions of WinDbgX installed or the WinDbgX binary is
         called something different.
 
-        If set to an empty string, pwntools will try to search for a reasonable WinDBGX binary from 
+        If set to an empty string, pwntools will try to search for a reasonable WinDbgX binary from 
         the path.
 
         Default value is ``""``.
@@ -1621,7 +1621,8 @@ class ContextType(object):
         Possible values are:
 
         - ``gdb``: Use GDB as the debugger.
-        - ``windbg``: Use WinDBG as the debugger.
+        - ``windbg``: Use WinDbg as the debugger.
+        - ``windbgx``: Use WinDbgX as the debugger.
         - ``x64dbg``: Use x64dbg as the debugger.
 
         Defaults to ``windbg`` on Windows and ``gdb`` otherwise.

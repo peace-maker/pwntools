@@ -59,6 +59,7 @@ Member Documentation
 from __future__ import absolute_import
 import atexit
 import os
+import pathlib
 import signal
 
 import subprocess
@@ -79,9 +80,18 @@ log = getLogger(__name__)
 CREATE_SUSPENDED = 0x00000004
 
 
+def _cleanup_file(tmp_pe, again):
+    try:
+        if os.path.exists(tmp_pe):
+            os.unlink(tmp_pe)
+    except OSError as e:
+        # If the file is in use, we can't delete it.
+        if again and e.errno == 5:  # Permission denied
+            atexit.register(_cleanup_file, False)
+
 @LocalContext
-def debug_assembly(asm, windbgscript=None, vma=None):
-    r"""debug_assembly(asm, windbgscript=None, vma=None, api=False) -> tube
+def debug_assembly(asm, dbgscript=None, vma=None):
+    r"""debug_assembly(asm, dbgscript=None, vma=None, api=False) -> tube
 
     Creates a PE file, and launches it under a debugger.
 
@@ -91,7 +101,7 @@ def debug_assembly(asm, windbgscript=None, vma=None):
 
     Arguments:
         asm(str): Assembly code to debug
-        windbgscript(str): Script to run in WinDbg
+        dbgscript(str): Script to run in WinDbg
         vma(int): Base address to load the shellcode at
         \**kwargs: Override any :obj:`pwnlib.context.context` values.
 
@@ -106,17 +116,17 @@ def debug_assembly(asm, windbgscript=None, vma=None):
     b'Hello world!\n'
     """
     tmp_pe = make_pe_from_assembly(asm, vma=vma)
-    atexit.register(lambda: os.unlink(tmp_pe))
-    return debug(tmp_pe, windbgscript=windbgscript, arch=context.arch)
+    atexit.register(_cleanup_file, tmp_pe, True)
+    return debug(tmp_pe, dbgscript=dbgscript, arch=context.arch)
 
 @LocalContext
-def debug_shellcode(data, windbgscript=None, vma=None):
-    r"""debug_shellcode(data, windbgscript=None, vma=None, api=False) -> tube
+def debug_shellcode(data, dbgscript=None, vma=None):
+    r"""debug_shellcode(data, dbgscript=None, vma=None, api=False) -> tube
     Creates a PE file, and launches it under a debugger.
 
     Arguments:
         data(str): Assembled shellcode bytes
-        windbgscript(str): Script to run in WinDbg
+        dbgscript(str): Script to run in WinDbg
         vma(int): Base address to load the shellcode at
         \**kwargs: Override any :obj:`pwnlib.context.context` values.
 
@@ -134,8 +144,8 @@ def debug_shellcode(data, windbgscript=None, vma=None):
     if isinstance(data, six.text_type):
         log.error("Shellcode cannot be unicode.  Did you mean debug_assembly?")
     tmp_pe = make_pe(data, vma=vma)
-    atexit.register(lambda: os.unlink(tmp_pe))
-    return debug(tmp_pe, windbgscript=windbgscript, arch=context.arch)
+    atexit.register(_cleanup_file, tmp_pe, True)
+    return debug(tmp_pe, dbgscript=dbgscript, arch=context.arch)
 
 
 @LocalContext
@@ -179,9 +189,14 @@ def debug(args, dbgscript=None, exe=None, env=None, creationflags=0, **kwargs):
     dbgscript = dbgscript or ''
     if isinstance(dbgscript, six.string_types):
         dbgscript = dbgscript.split('\n')
+    
+    debugger, _ = binary()
     # resume main thread
-    if context.debugger_selection in ('windbg', ''):
+    if debugger in ('windbg', 'windbgx'):
         dbgscript = ['~0m'] + dbgscript
+    elif debugger == 'x64dbg':
+        dbgscript = ['threadresumeall'] + dbgscript
+        log.info_once('x64dbg: To resume the main thread, you need to use the "threadresumeall" command. ')
     creationflags |= CREATE_SUSPENDED
     io = tubes.process.process(args, executable=exe, env=env, creationflags=creationflags)
     attach(target=io, dbgscript=dbgscript, **kwargs)
@@ -189,60 +204,79 @@ def debug(args, dbgscript=None, exe=None, env=None, creationflags=0, **kwargs):
     return io
 
 def binary():
-    """binary() -> str
+    """binary() -> (str, str)
 
     Returns the path to the debugger binary depending on the context.
     :attr:`.context.debugger` is used to determine which debugger to use.
 
     Returns:
+        str: Name of selected debugger.
         str: Path to the appropriate debugger binary to use.
     """
     if context.debugger == '':
         for debugger in context.debugger_choices:
-            with context.local(debugger=debugger):
+            with context.local(debugger=debugger, log_level='critical'):
                 try:
                     return binary()
                 except Exception:
                     pass
+        else:
+            log.error('No debugger found. Please set context.debugger to one of: %s\n'
+                      'You might have to specify the path to the debugger binary with context.x64dbg_binary, context.windbg_binary or context.windbgx_binary.',
+                      ', '.join(context.debugger_choices))
 
     if context.debugger == 'x64dbg':
-        return _lookup_x64dbg()
+        return context.debugger, _lookup_x64dbg()
     
     if context.debugger == 'windbg':
         if context.windbg_binary:
             windbg = misc.which(context.windbg_binary)
             if not windbg:
-                log.warn_once('Path to WinDBG binary `{}` not found'.format(context.windbg_binary))
-            return windbg
+                log.warn_once('Path to WinDbg binary `{}` not found'.format(context.windbg_binary))
+            return context.debugger, windbg
 
         windbg = misc.which('windbg.exe')
         if not windbg:
             log.error('windbg is not installed or in system PATH')
-        return windbg
+        return context.debugger, windbg
 
     if context.debugger == 'windbgx':
         if context.windbgx_binary:
             windbg = misc.which(context.windbgx_binary)
             if not windbg:
-                log.warn_once('Path to WinDBGx binary `{}` not found'.format(context.windbgx_binary))
-            return windbg
+                log.warn_once('Path to WinDbgx binary `{}` not found'.format(context.windbgx_binary))
+            return context.debugger, windbg
 
         windbg = misc.which('windbgx.exe')
         if not windbg:
             log.error('windbgx is not installed or in system PATH')
-        return windbg
+        return context.debugger, windbg
     log.error('Invalid debugger selection: %s', context.debugger)
 
 def _lookup_x64dbg():
+    def _select_arch_binary(path):
+        # Select the appropriate x64dbg binary based on the architecture directly
+        # instead of the x96dbg.exe selector binary.
+        # The x96dbg.exe proxy launches the correct one but our `wait_for_debugger`
+        # function doesn't follow that and reports the proxy binary exiting early.
+        base_path = pathlib.Path(path).resolve().parent
+        if base_path.name in ('x32', 'x64'):
+            base_path = base_path.parent
+        if context.arch == 'i386':
+            return base_path / 'x32' / 'x32dbg.exe'
+        elif context.arch == 'amd64':
+            return base_path / 'x64' / 'x64dbg.exe'
+        else:
+            log.error('Unsupported architecture for x64dbg: %s', context.arch)
     if context.x64dbg_binary:
         x64dbg = misc.which(context.x64dbg_binary)
         if not x64dbg:
             log.warn_once('Path to x64dbg binary `{}` not found'.format(context.x64dbg_binary))
-        return x64dbg
+        return _select_arch_binary(x64dbg)
 
     x64dbg = misc.which('x96dbg.exe')
     if x64dbg:
-        return x64dbg
+        return _select_arch_binary(x64dbg)
 
     # See if the "Debug with x64dbg" shell extension is installed
     try:
@@ -255,7 +289,7 @@ def _lookup_x64dbg():
             command = regcmd[0].split('"')[1]
             if not os.path.exists(command):
                 log.error('x64dbg path from registry does not exist')
-            return command
+            return _select_arch_binary(command)
     except FileNotFoundError:
         pass
 
@@ -329,7 +363,8 @@ def attach(target, dbgscript=None, dbg_args=[]):
     if not pid:
         log.error('could not find target process')
     
-    cmd = [binary()]
+    debugger, debugger_path = binary()
+    cmd = [debugger_path]
     if dbg_args:
         cmd.extend(dbg_args)
     
@@ -341,7 +376,10 @@ def attach(target, dbgscript=None, dbg_args=[]):
     if isinstance(dbgscript, list):
         dbgscript = ';'.join(script.strip() for script in dbgscript if script.strip())
     if dbgscript:
-        cmd.extend(['-c', dbgscript])
+        if debugger in ('windbg', 'windbgx'):
+            cmd.extend(['-c', dbgscript])
+        else:
+            log.warn_once('dbgscript is not supported for %s' % debugger)
     
     log.info("Launching a new process: %r" % cmd)
 
