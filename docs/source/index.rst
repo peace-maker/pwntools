@@ -52,7 +52,7 @@ Each of the ``pwntools`` modules is documented here.
    context
    dynelf
    encoders
-   elf/*
+   elf
    exception
    filepointer
    filesystem
@@ -65,15 +65,14 @@ Each of the ``pwntools`` modules is documented here.
    pe
    protocols
    qemu
+   regsort
    replacements
-   rop/*
+   rop
    runner
    shellcraft
-   shellcraft/*
    term
    timeout
    tubes
-   tubes/*
    ui
    update
    useragents

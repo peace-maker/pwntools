@@ -555,6 +555,9 @@ class Corefile(ELF):
         # Pointer to the entry point
         self.at_entry = 0
 
+        # Pointer to the vdso
+        self.at_sysinfo_ehdr = None
+
         try:
             super(Corefile, self).__init__(*a, **kw)
         except IOError:
@@ -565,10 +568,10 @@ class Corefile(ELF):
         self._address  = 0
 
         if self.elftype != 'CORE':
-            log.error("%s is not a valid corefile" % self.file.name)
+            log.error("%s is not a valid corefile" % self.path)
 
         if self.arch not in prstatus_types:
-            log.warn_once("%s does not use a supported corefile architecture, registers are unavailable" % self.file.name)
+            log.warn_once("%s does not use a supported corefile architecture, registers are unavailable" % self.path)
 
         prstatus_type = prstatus_types.get(self.arch)
         siginfo_type = siginfo_types.get(self.bits)
@@ -611,6 +614,8 @@ class Corefile(ELF):
 
             if not self.stack and self.mappings:
                 self.stack = self.mappings[-1].stop
+                if self.mappings[-1].start == 0xffffffffff600000 and len(self.mappings) > 1:
+                    self.stack = self.mappings[-2].stop
 
             if self.stack and self.mappings:
                 for mapping in self.mappings:

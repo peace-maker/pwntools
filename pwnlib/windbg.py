@@ -64,8 +64,6 @@ import signal
 
 import subprocess
 
-import six
-
 from pwnlib import tubes
 from pwnlib.asm import make_pe
 from pwnlib.asm import make_pe_from_assembly
@@ -141,7 +139,7 @@ def debug_shellcode(data, dbgscript=None, vma=None):
     >>> io.recvline()
     b'Hello world!\n'
     """
-    if isinstance(data, six.text_type):
+    if isinstance(data, str):
         log.error("Shellcode cannot be unicode.  Did you mean debug_assembly?")
     tmp_pe = make_pe(data, vma=vma)
     atexit.register(_cleanup_file, tmp_pe, True)
@@ -178,7 +176,7 @@ def debug(args, dbgscript=None, exe=None, env=None, creationflags=0, **kwargs):
         instruction of the entry point.
     """
     if isinstance(
-        args, six.integer_types + (tubes.process.process, tubes.ssh.ssh_channel)
+        args, (int, tubes.process.process, tubes.ssh.ssh_channel)
     ):
         log.error("Use windbg.attach() to debug a running process")
 
@@ -187,7 +185,7 @@ def debug(args, dbgscript=None, exe=None, env=None, creationflags=0, **kwargs):
         return tubes.process.process(args, executable=exe, env=env, creationflags=creationflags)
     
     dbgscript = dbgscript or ''
-    if isinstance(dbgscript, six.string_types):
+    if isinstance(dbgscript, str):
         dbgscript = dbgscript.split('\n')
     
     debugger, _ = binary()
@@ -344,7 +342,7 @@ def attach(target, dbgscript=None, dbg_args=[]):
 
     # let's see if we can find a pid to attach to
     pid = None
-    if isinstance(target, six.integer_types):
+    if isinstance(target, int):
         # target is a pid, easy peasy
         pid = target
     elif isinstance(target, str):
@@ -371,7 +369,7 @@ def attach(target, dbgscript=None, dbg_args=[]):
     cmd.extend(['-p', str(pid)])
 
     dbgscript = dbgscript or ''
-    if isinstance(dbgscript, six.string_types):
+    if isinstance(dbgscript, str):
         dbgscript = dbgscript.split('\n')
     if isinstance(dbgscript, list):
         dbgscript = ';'.join(script.strip() for script in dbgscript if script.strip())
