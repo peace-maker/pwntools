@@ -364,6 +364,7 @@ class ContextType(object):
         'gdbinit': "",
         'gdb_binary': "",
         'windbg_binary': "",
+        'windbgx_binary': "",
         'x64dbg_binary': "",
         'debugger': "",
         'kernel': None,
