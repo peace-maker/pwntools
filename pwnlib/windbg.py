@@ -226,7 +226,7 @@ def binary():
 
     if context.debugger == 'x64dbg':
         return context.debugger, _lookup_x64dbg()
-    
+
     if context.debugger == 'windbg':
         if context.windbg_binary:
             windbg = misc.which(context.windbg_binary)
@@ -236,9 +236,12 @@ def binary():
 
         windbg = misc.which('windbg.exe')
         if not windbg:
+            # TODO: check host architecture and use proper x86/x64/arm toolkit path.
+            windbg = misc.which(r'C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\windbg.exe')
+        if not windbg:
             log.error('windbg is not installed or in system PATH')
         return context.debugger, windbg
-    
+
     if context.debugger == 'cdb':
         if context.cdb_binary:
             cdb = misc.which(context.cdb_binary)
@@ -247,6 +250,9 @@ def binary():
             return context.debugger, cdb
 
         cdb = misc.which('cdb.exe')
+        if not cdb:
+            # TODO: check host architecture and use proper x86/x64/arm toolkit path.
+            cdb = misc.which(r'C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\cdb.exe')
         if not cdb:
             log.error('cdb is not installed or in system PATH')
         return context.debugger, cdb
@@ -259,6 +265,8 @@ def binary():
             return context.debugger, windbg
 
         windbg = misc.which('windbgx.exe')
+        if not windbg and os.environ.get('LocalAppData'):
+            windbg = misc.which(os.path.join(os.environ.get('LocalAppData'), r'Microsoft\WindowsApps\WinDbgX.exe'))
         if not windbg:
             log.error('windbgx is not installed or in system PATH')
         return context.debugger, windbg
