@@ -63,6 +63,7 @@ import pathlib
 import signal
 
 import subprocess
+import tempfile
 
 from pwnlib import tubes
 from pwnlib.asm import make_pe
@@ -190,7 +191,7 @@ def debug(args, dbgscript=None, exe=None, env=None, creationflags=0, **kwargs):
     
     debugger, _ = binary()
     # resume main thread
-    if debugger in ('windbg', 'windbgx'):
+    if debugger in ('windbg', 'windbgx', 'cdb'):
         dbgscript = ['~0m'] + dbgscript
     elif debugger == 'x64dbg':
         dbgscript = ['threadresumeall'] + dbgscript
@@ -237,6 +238,18 @@ def binary():
         if not windbg:
             log.error('windbg is not installed or in system PATH')
         return context.debugger, windbg
+    
+    if context.debugger == 'cdb':
+        if context.cdb_binary:
+            cdb = misc.which(context.cdb_binary)
+            if not cdb:
+                log.warn_once('Path to CDB binary `{}` not found'.format(context.cdb_binary))
+            return context.debugger, cdb
+
+        cdb = misc.which('cdb.exe')
+        if not cdb:
+            log.error('cdb is not installed or in system PATH')
+        return context.debugger, cdb
 
     if context.debugger == 'windbgx':
         if context.windbgx_binary:
@@ -371,21 +384,30 @@ def attach(target, dbgscript=None, dbg_args=[]):
     dbgscript = dbgscript or ''
     if isinstance(dbgscript, str):
         dbgscript = dbgscript.split('\n')
-    if isinstance(dbgscript, list):
-        dbgscript = ';'.join(script.strip() for script in dbgscript if script.strip())
+    with tempfile.NamedTemporaryFile(mode='w+', delete=False) as tmp:
+        tmp.write('\n'.join(script.strip() for script in dbgscript if script.strip()))
+        tmp.flush()
+        dbgscript_file = tmp.name
+
     if dbgscript:
         if debugger in ('windbg', 'windbgx'):
-            cmd.extend(['-c', dbgscript])
+            cmd.extend(['-c', '$<{}'.format(dbgscript_file)])
+        elif debugger == 'cdb':
+            cmd.extend(['-cf', dbgscript_file])
         else:
             log.warn_once('dbgscript is not supported for %s' % debugger)
     
     log.info("Launching a new process: %r" % cmd)
 
-    io = subprocess.Popen(cmd)
-    debugger_pid = io.pid
+    if debugger == 'cdb':
+        debugger_pid = misc.run_in_new_terminal(cmd)
+    else:
+        io = subprocess.Popen(cmd)
+        debugger_pid = io.pid
 
     def kill():
         try:
+            os.unlink(dbgscript_file)
             os.kill(debugger_pid, signal.SIGTERM)
         except OSError:
             pass

@@ -286,6 +286,7 @@ def run_in_new_terminal(command, terminal=None, args=None, kill_at_exit=True, pr
         - If WSL (Windows Subsystem for Linux) is detected (by the presence of
           a ``wsl.exe`` binary in the ``$PATH`` and ``/proc/sys/kernel/osrelease``
           containing ``Microsoft``), a new ``cmd.exe`` window will be opened.
+        - On Windows, a new cmd.exe window will be opened.
 
     If `kill_at_exit` is :const:`True`, try to close the command/terminal when the
     current process exits. This may not work for all terminal types.
@@ -401,7 +402,8 @@ def run_in_new_terminal(command, terminal=None, args=None, kill_at_exit=True, pr
     
     if not terminal and sys.platform == 'win32':
         terminal    = 'cmd.exe'
-        args        = ['/c', 'start']
+        title = command if isinstance(command, str) else ' '.join(command)
+        args        = ['/c', 'start', 'pwntools: {}'.format(title)]
         if 'WT_SESSION' in os.environ and which('wt.exe'):
             args.extend(['wt.exe', '-w', '0', 'split-pane'])
 
@@ -426,27 +428,30 @@ def run_in_new_terminal(command, terminal=None, args=None, kill_at_exit=True, pr
             log.error("Cannot use commands with semicolon.  Create a script and invoke that directly.")
         argv += [command]
     elif isinstance(command, (list, tuple)):
-        # Dump the full command line to a temporary file so we can be sure that
-        # it is parsed correctly, and we do not need to account for shell expansion
-        script = '''
+        if sys.platform == 'win32':
+            # os.execve starts a new process instead of replacing the current one.
+            # FIXME: Cannot use the Python workaround below on Windows :(
+            argv += list(map(lambda x: x.replace(';', '\\;'), command))
+        else:
+            # Dump the full command line to a temporary file so we can be sure that
+            # it is parsed correctly, and we do not need to account for shell expansion
+            script = '''
 #!{executable!s}
 import os
 os.execve({argv0!r}, {argv!r}, os.environ)
 '''
-        script = script.format(executable='/bin/env ' * (' ' in sys.executable) + sys.executable,
-                               argv=command,
-                               argv0=which(command[0]))
-        script = script.lstrip()
+            script = script.format(executable='/bin/env ' * (' ' in sys.executable) + sys.executable,
+                                argv=command,
+                                argv0=which(command[0]))
+            script = script.lstrip()
 
-        log.debug("Created script for new terminal:\n%s" % script)
+            log.debug("Created script for new terminal:\n%s" % script)
 
-        with tempfile.NamedTemporaryFile(delete=False, mode='wt+') as tmp:
-          tmp.write(script)
-          tmp.flush()
-          os.chmod(tmp.name, 0o700)
-          if sys.platform == 'win32':
-            argv += [sys.executable]
-          argv += [tmp.name]
+            with tempfile.NamedTemporaryFile(delete=False, mode='wt+') as tmp:
+                tmp.write(script)
+                tmp.flush()
+            os.chmod(tmp.name, 0o700)
+            argv += [tmp.name]
 
 
     # if we're on a Mac and use iTerm, we use `osascript` to split the current window
@@ -480,6 +485,13 @@ end tell
     if terminal == 'tmux' or terminal in ('kitty', 'kitten'):
         stdout = subprocess.PIPE
 
+    if terminal == 'cmd.exe' and sys.platform == 'win32':
+        # Stupid workaround for `cmd.exe /c start` not returning
+        # the pid of the started process.
+        # Look for new processes started after this command.
+        from pwnlib.util.proc import all_pids
+        prev_pids = set(all_pids())
+
     p = subprocess.Popen(argv, stdin=stdin, stdout=stdout, stderr=stderr, preexec_fn=preexec_fn)
 
     if terminal == 'tmux':
@@ -512,22 +524,41 @@ end tell
                 pid = None
                 log.error("Json decode failed while parsing 'kitten @ ls' output (%r) (error: %r)", lsout, e)
             
-    elif terminal == 'cmd.exe' and sys.platform != 'win32':
-        # p.pid is cmd.exe's pid instead of the WSL process we want to start eventually.
-        # I don't know how to trace the execution through Windows and back into the WSL2 VM.
-        # Do a best guess by waiting for a new process matching the command to be run.
-        # Otherwise it's better to return nothing instead of a know wrong pid.
-        from pwnlib.util.proc import pid_by_name
-        pid = None
-        ran_program = command.split(' ')[0] if isinstance(command, str) else command[0]
-        t = Timeout()
-        with t.countdown(timeout=5):
-            while t.timeout:
-                new_pid = pid_by_name(ran_program)
-                if new_pid and new_pid[0] > p.pid:
-                    pid = new_pid[0]
-                    break
-                time.sleep(0.01)
+    elif terminal == 'cmd.exe':
+        if sys.platform == 'win32':
+            # cmd.exe /c start does not return the pid of the started process.
+            # Instead, we have to wait for the process to start and then find it.
+            # psutil.process_iter() is really slow on Windows, so we use a different method.
+            from pwnlib.util.proc import exe
+            pid = None
+            t = Timeout()
+            with t.countdown(timeout=5):
+                target_program = command.split(' ')[0] if isinstance(command, str) else command[0]
+                while t.timeout and pid is None:
+                    new_pids = set(all_pids()) - prev_pids
+                    for tpid in new_pids:
+                        try:
+                            if exe(tpid) == target_program:
+                                pid = tpid
+                                break
+                        except Exception:
+                            pass
+        else:
+            # p.pid is cmd.exe's pid instead of the WSL process we want to start eventually.
+            # I don't know how to trace the execution through Windows and back into the WSL2 VM.
+            # Do a best guess by waiting for a new process matching the command to be run.
+            # Otherwise it's better to return nothing instead of a know wrong pid.
+            from pwnlib.util.proc import pid_by_name
+            pid = None
+            ran_program = command.split(' ')[0] if isinstance(command, str) else command[0]
+            t = Timeout()
+            with t.countdown(timeout=5):
+                while t.timeout:
+                    new_pid = pid_by_name(ran_program)
+                    if new_pid and new_pid[0] > p.pid:
+                        pid = new_pid[0]
+                        break
+                    time.sleep(0.01)
     else:
         pid = p.pid
 

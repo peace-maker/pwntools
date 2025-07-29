@@ -365,6 +365,7 @@ class ContextType(object):
         'gdb_binary': "",
         'windbg_binary': "",
         'windbgx_binary': "",
+        'cdb_binary': "",
         'x64dbg_binary': "",
         'debugger': "",
         'kernel': None,
@@ -457,7 +458,7 @@ class ContextType(object):
     valid_signed = sorted(signednesses)
 
     #: Valid values for :attr:`debugger`
-    debugger_choices = ['gdb', 'windbg', 'windbgx', 'x64dbg']
+    debugger_choices = ['gdb', 'windbg', 'windbgx', 'cdb', 'x64dbg']
 
     def __init__(self, **kwargs):
         """
@@ -1577,6 +1578,9 @@ class ContextType(object):
         This is useful when you have multiple versions of WinDbg installed or the WinDbg binary is
         called something different.
 
+        Usually, it is installed to ``C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\windbg.exe``.
+        Adding the path to the Windows SDK to your PATH variable is recommended.
+
         If set to an empty string, pwntools will try to search for a reasonable WinDbg binary from 
         the path.
 
@@ -1591,7 +1595,26 @@ class ContextType(object):
         This is useful when you have multiple versions of WinDbgX installed or the WinDbgX binary is
         called something different.
 
+        Usually, it is installed to ``%LocalAppData%\Microsoft\WindowsApps\WinDbgX.exe``.
+
         If set to an empty string, pwntools will try to search for a reasonable WinDbgX binary from 
+        the path.
+
+        Default value is ``""``.
+        """
+        return str(value)
+
+    @_validator
+    def cdb_binary(self, value):
+        """Path to the binary that is used when running cdb locally.
+
+        This is useful when you have multiple versions of cdb installed or the cdb binary is
+        called something different.
+
+        Usually, it is installed to ``C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\cdb.exe``.
+        Adding the path to the Windows SDK to your PATH variable is recommended.
+
+        If set to an empty string, pwntools will try to search for a reasonable cdb binary from
         the path.
 
         Default value is ``""``.
@@ -1608,7 +1631,7 @@ class ContextType(object):
         called something different.
 
         If set to an empty string, pwntools will try to search for a reasonable x64dbg binary from 
-        the path.
+        the path or based on the ``"Debug with x64dbg"`` shell extension if available.
 
         Default value is ``""``.
         """
