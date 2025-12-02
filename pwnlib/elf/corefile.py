@@ -92,6 +92,7 @@ from pwnlib.util.fiddling import b64d
 from pwnlib.util.fiddling import enhex
 from pwnlib.util.fiddling import unhex
 from pwnlib.util.misc import read
+from pwnlib.util.misc import which
 from pwnlib.util.misc import write
 from pwnlib.util.packing import pack
 from pwnlib.util.packing import unpack_many
@@ -123,7 +124,7 @@ class Mapping(object):
         #: :class:`int`: First mapped byte in the mapping
         self.start = start
 
-        #: :class:`int`: First byte after the end of hte mapping
+        #: :class:`int`: First byte after the end of the mapping
         self.stop = stop
 
         #: :class:`int`: Size of the mapping, in bytes
@@ -325,7 +326,7 @@ class Corefile(ELF):
         >>> hex(core.exe.address)
         '0x41410000'
 
-        The core file also has registers which can be accessed direclty.
+        The core file also has registers which can be accessed directly.
         Pseudo-registers :attr:`pc` and :attr:`sp` are available on all architectures,
         to make writing architecture-agnostic code more simple.
         If this were an amd64 corefile, we could access e.g. ``core.rax``.
@@ -482,6 +483,22 @@ class Corefile(ELF):
         True
         >>> core.sp in core.stack
         False
+
+        context.disable_corefiles disables the automatic corefile generation
+        for crashed processes. For running processes, io.corefile still invoke
+        GDB to generate a coredump.
+
+        >>> context.clear(arch='amd64')
+        >>> context.disable_corefiles = True
+        >>> elf = ELF.from_assembly(shellcraft.crash())
+        >>> io = elf.process()
+        >>> io.wait(1)
+        >>> io.corefile is None
+        True
+        >>> io = process('bash')
+        >>> core = io.corefile
+        >>> core is not None
+        True
 
         Corefile gracefully handles the stack being filled with garbage, including
         argc / argv / envp being overwritten.
@@ -733,7 +750,7 @@ class Corefile(ELF):
         for m in self.mappings:
             first_segment_for_name.setdefault(m.name, m)
 
-        # Find which segment conains the entry point
+        # Find which segment contains the entry point
         for m in self.mappings:
             if m.start <= self.at_entry < m.stop:
 
@@ -1367,6 +1384,38 @@ class CorefileFinder(object):
         except subprocess.CalledProcessError as e:
             log.debug("coredumpctl failed with status: %d" % e.returncode)
 
+    def wsl_capture_crash_corefile(self):
+        # Get the temp directory of the current user on Windows.
+        with context.local(os="windows", log_level="error"):
+            with process([which("cmd.exe"), "/U", "/c", "echo %TEMP%"]) as p:
+                windows_temp = p.recvall().decode("utf-16le").strip().split(context.newline.decode())
+            if not windows_temp:
+                log.error("Could not determine Windows temp directory")
+                return None
+            # Convert the C:\... Windows path to a WSL path.
+            with process([which("wslpath"), "-a", "-u", windows_temp[-1]]) as p:
+                windows_temp_path = p.recvallS().strip()
+
+        # The /wsl-capture-crash tool stores the core files in %TEMP%\wsl-crashes
+        wsl_crashes = os.path.join(windows_temp_path, "wsl-crashes")
+        if not os.path.isdir(wsl_crashes):
+            log.debug("WSL crashes directory does not exist: %r", wsl_crashes)
+            return None
+
+        # Format the name
+        corefile_name = 'wsl-crash-*-{pid}-*{basename}*.dmp'
+        corefile_name = corefile_name.format(pid=self.pid, basename=self.basename)
+
+        # Get the full path
+        corefile_path = os.path.join(wsl_crashes, corefile_name)
+
+        log.debug("Trying corefile_path: %r", corefile_path)
+
+        # Glob all of them, return the *most recent* based on numeric sort order.
+        for corefile in sorted(glob.glob(corefile_path), reverse=True):
+            return corefile
+        return None
+
     def native_corefile(self):
         """Find the corefile for a native crash.
 
@@ -1415,6 +1464,9 @@ class CorefileFinder(object):
         elif b'systemd-coredump' in self.kernel_core_pattern:
             log.debug("Found systemd-coredump in core_pattern")
             return self.systemd_coredump_corefile()
+        elif b'/wsl-capture-crash' in self.kernel_core_pattern:
+            log.debug("Found WSL core_pattern")
+            return self.wsl_capture_crash_corefile()
         else:
             log.warn_once("Unsupported core_pattern: %r", self.kernel_core_pattern)
             return None

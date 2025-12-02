@@ -5,7 +5,7 @@ jobs:
   test:
     strategy:
       matrix:
-        python_version: ['3.10', '3.12', '3.13']
+        python_version: ['3.10', '3.12', '3.13', '3.14']
         os: [ubuntu-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
@@ -19,13 +19,14 @@ jobs:
           - 3001:3001  # https://libc.rip/ proxy cache
           - 3002:3002  # http://archive.ubuntu.com/ proxy cache
           - 3003:3003  # https://gitlab.com/ proxy cache
+          - 3004:3004  # https://debuginfod.ubuntu.com/ proxy cache
     env:
-      DEBUGINFOD_URLS: http://localhost:3000/
+      DEBUGINFOD_URLS: "http://localhost:3000/ http://localhost:3004/"
       PWN_LIBCRIP_URL: http://localhost:3001/
       PWN_UBUNTU_ARCHIVE_URL: http://localhost:3002/
       PWN_GITLAB_LIBCDB_URL:  http://localhost:3003/
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
       with:
         fetch-depth: 20
 
@@ -65,7 +66,7 @@ jobs:
         gdb --batch --quiet --nx --nh --ex 'py import rpyc; print(rpyc.version.version)'
 
     - name: Set up Python ${{ matrix.python_version }}
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
         python-version: ${{ matrix.python_version }}
         cache: 'pip'
@@ -97,6 +98,7 @@ jobs:
           binutils-aarch64-linux-gnu \
           binutils-arm-linux-gnueabihf \
           binutils-mips-linux-gnu \
+          binutils-mipsel-linux-gnu \
           binutils-msp430 \
           binutils-powerpc-linux-gnu \
           binutils-s390x-linux-gnu \
@@ -108,13 +110,14 @@ jobs:
           elfutils \
           patchelf
 
+    # Print diagnostics to help when Corefile doctests fail.
     - name: Testing Corefiles
       run: |
         ulimit -a
         ulimit -c unlimited
         cat /proc/sys/kernel/core_pattern
         cat /proc/sys/kernel/core_uses_pid
-        ( cd $(mktemp -d); sh -c 'kill -11 $$' || true; ls -la ./*core* /var/crash/*.crash /var/lib/apport/coredump/core*) || true
+        ( cd $(mktemp -d); sh -c 'kill -11 $$' || true; ls -la ./*core* /var/crash/*.crash /var/lib/apport/coredump/core* || coredumpctl list sh) || true
 
     - name: Set up SSH
       run: |
@@ -221,14 +224,14 @@ jobs:
       run: |
         python -m build
 
-    - uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@v5
       if: matrix.python_version == '3.10'
       with:
         name: packages
         path: dist/
         include-hidden-files: true
 
-    - uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@v5
       with:
         name: coverage-${{ matrix.python_version }}
         path: .coverage*
@@ -245,10 +248,10 @@ jobs:
     timeout-minutes: 30
     continue-on-error: true
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
 
     - name: Set up Python 3.12
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
         python-version: '3.12'
         cache: 'pip'
@@ -304,7 +307,7 @@ jobs:
         source .android.env
         PWNLIB_NOTERM=1 coverage run -m sphinx -b doctest docs/source docs/build/doctest docs/source/adb.rst
 
-    - uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@v5
       with:
         name: coverage-android
         path: .coverage*
@@ -315,10 +318,10 @@ jobs:
     timeout-minutes: 30
     continue-on-error: true
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
 
     - name: Set up Python 3.12
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
         python-version: '3.12'
 
@@ -339,7 +342,7 @@ jobs:
       run: |
         python -bb -m coverage run -m sphinx -b doctest docs/source docs/build/doctest
 
-    - uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@v5
       with:
         name: coverage-windows
         path: .coverage*
@@ -349,11 +352,11 @@ jobs:
     runs-on: ubuntu-latest
     needs: test
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
       with:
         fetch-depth: 20
 
-    - uses: actions/download-artifact@v4
+    - uses: actions/download-artifact@v6
       with:
         pattern: coverage-*
         merge-multiple: true
@@ -373,7 +376,7 @@ jobs:
     if: github.repository_owner == 'Gallopsled' && github.event_name == 'push' && startsWith(github.event.ref, 'refs/heads/') && endsWith(github.event.ref, '-staging')
     needs: test
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
       with:
         fetch-depth: 20
     - name: Push changes to protected branch
@@ -395,7 +398,7 @@ jobs:
     needs: test
     steps:
     - name: Download artifacts
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v6
       with:
         name: packages
         path: dist

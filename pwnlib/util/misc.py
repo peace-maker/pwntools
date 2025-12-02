@@ -421,6 +421,18 @@ def run_in_new_terminal(command, terminal=None, args=None, kill_at_exit=True, pr
     if terminal == 'tmux':
         args += ['-F' '#{pane_pid}', '-P']
 
+    if terminal == "kitty":
+        if not args:
+            # Likely the average user just wanted to tell pwntools to use kitty, rather than
+            # thinking about how the terminal will actually be invoked.
+            terminal = "kitten"
+            args = ["@", "launch"]
+        else:
+            # Allowing this would make our life much harder (because we don't get the window id from
+            # running `kitty`, but we do from `kitten @ launch`) and it's an easy fix for the user.
+            log.error(
+                f"Invalid kitty invocation {context.terminal}, please use `kitten @ launch`.")
+            
     argv = [which(terminal)] + args
 
     if isinstance(command, str):
@@ -482,8 +494,10 @@ end tell
     log.debug("Launching a new terminal: %r" % argv)
 
     stdin = stdout = stderr = open(os.devnull, 'r+b')
-    if terminal == 'tmux' or terminal in ('kitty', 'kitten'):
+    if terminal == 'tmux' or terminal == 'kitten':
         stdout = subprocess.PIPE
+    if terminal == 'kitten':
+        stderr = subprocess.PIPE
 
     if terminal == 'cmd.exe' and sys.platform == 'win32':
         # Stupid workaround for `cmd.exe /c start` not returning
@@ -506,15 +520,20 @@ end tell
         with subprocess.Popen((qdbus, konsole_dbus_service, '/Sessions/{}'.format(last_konsole_session),
                                'org.kde.konsole.Session.processId'), stdout=subprocess.PIPE) as proc:
             pid = int(proc.communicate()[0].decode())
-    elif terminal in ('kitty', 'kitten'):
+    elif terminal == "kitten":
         pid = None
-        out, _ = p.communicate()
+        out, err = p.communicate()
+
+        # Catch the most common user error
+        if b"Remote control is disabled" in err:
+            log.error("Kitty remote control is disabled. Add `allow_remote_control yes` to your ~/.config/kitty/kitty.conf .")
+
         try:
             kittyid = int(out)
         except ValueError:
             kittyid = None
         if kittyid is None:
-            log.error("Could not parse kitty window ID from output (%r)", out)
+            log.error("Could not parse kitty window ID from output (%r) (stderr: %r)", out, err)
         else:
             lsout, _ = subprocess.Popen(["kitten", "@", "ls", "--match", "id:%d" % kittyid], stdin=stdin, stdout=stdout, stderr=stderr).communicate()
             try:
