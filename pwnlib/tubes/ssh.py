@@ -718,6 +718,7 @@ class ssh(Timeout, Logger):
                         keyfile = None
         except Exception as e:
             self.debug("An error occurred while parsing ~/.ssh/config:\n%s" % e)
+        self.error("Connecting to %s on port %d as %s with %s", host, port, user, keyfile if keyfile else 'no keyfile')
         
         if port is None:
             self.port = port = 22
@@ -764,7 +765,6 @@ class ssh(Timeout, Logger):
                 proxy_sock = None
 
             try:
-                print("Connecting to SSH host %s:%d as %s" % (host, port, user))
                 self.client.connect(host, port, user, password, key, keyfiles, self.timeout, allow_agent=ssh_agent, compress=True, sock=proxy_sock, look_for_keys=not ignore_config, disabled_algorithms=disabled_algorithms)
             except paramiko.BadHostKeyException as e:
                 self.error(f"""Remote host {host} is using a different key than stated in known_hosts
