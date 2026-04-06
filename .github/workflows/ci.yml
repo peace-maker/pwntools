@@ -44,8 +44,6 @@ jobs:
         sed -i 's/#Port 22/Port 2200/' /etc/ssh/sshd_config
         systemctl daemon-reload
         systemctl restart ssh.socket
-        systemctl status ssh
-        systemctl status ssh.socket
         useradd -m travis
         passwd --delete --unlock travis
         chsh --shell /bin/bash travis
