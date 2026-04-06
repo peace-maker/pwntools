@@ -169,6 +169,7 @@ jobs:
       uses: owenthereal/action-upterm@v1
       with:
         limit-access-to-actor: true
+        detached: true
 
     - name: Coverage doctests
       run: |
