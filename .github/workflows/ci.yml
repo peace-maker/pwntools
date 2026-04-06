@@ -51,6 +51,12 @@ jobs:
         cp /mnt/c/Users/runneradmin/.ssh/travis.pub /home/travis/.ssh/authorized_keys
         chown -R travis:travis /home/travis/.ssh
         chmod 600 /home/travis/.ssh/authorized_keys
+    
+    - name: Setup upterm session
+      uses: owenthereal/action-upterm@v1
+      with:
+        limit-access-to-actor: true
+        detached: true
 
     - name: Install dependencies
       run: |
