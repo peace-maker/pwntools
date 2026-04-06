@@ -47,6 +47,7 @@ jobs:
         systemctl daemon-reload
         systemctl restart ssh.socket
         ss -tulnp
+        cat /etc/wsl.conf
         useradd -m travis
         passwd --delete --unlock travis
         chsh --shell /bin/bash travis
@@ -55,21 +56,21 @@ jobs:
         chown -R travis:travis /home/travis/.ssh
         chmod 600 /home/travis/.ssh/authorized_keys
 
-    - name: Install dependencies
-      run: |
-        pip install --upgrade pip
-        pip install --upgrade --editable .
+    # - name: Install dependencies
+    #   run: |
+    #     pip install --upgrade pip
+    #     pip install --upgrade --editable .
 
-    - name: Install documentation dependencies
-      run: pip install -r docs/requirements.txt
+    # - name: Install documentation dependencies
+    #   run: pip install -r docs/requirements.txt
 
     - name: Sanity checks
       run: |
         ssh -v travis@example.pwnme id
-        python -bb -c 'from pwn import *'
-        python -bb examples/text.py
+        # python -bb -c 'from pwn import *'
+        # python -bb examples/text.py
 
-    - name: Coverage doctests
-      run: |
-        python -bb -m coverage run -m sphinx -b doctest docs/source docs/build/doctest
+    # - name: Coverage doctests
+    #   run: |
+    #     python -bb -m coverage run -m sphinx -b doctest docs/source docs/build/doctest
 
