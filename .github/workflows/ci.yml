@@ -21,6 +21,11 @@ jobs:
         use-cache: 'true'
         additional-packages:
           openssh-server
+        wsl-conf: |
+          [boot]
+          systemd=true
+          [wsl2]
+          vmIdleTimeout=-1
 
     - name: Setup SSH config on host
       shell: bash
@@ -62,13 +67,11 @@ jobs:
 
     - name: Sanity checks
       run: |
-        wsl --distribution 'Ubuntu-24.04' hostname -I
         ssh -v travis@example.pwnme id
         python -bb -c 'from pwn import *'
         python -bb examples/text.py
 
     - name: Coverage doctests
       run: |
-        wsl --distribution 'Ubuntu-24.04' hostname -I
         python -bb -m coverage run -m sphinx -b doctest docs/source docs/build/doctest
 
