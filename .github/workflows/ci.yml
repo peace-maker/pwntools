@@ -29,10 +29,11 @@ jobs:
         mkdir -p ~/.ssh
         ssh-keygen -t rsa -f ~/.ssh/travis -N ''
         echo "TRAVIS_SSH_PUBLIC_KEY=$(cat ~/.ssh/travis.pub)" >> $GITHUB_ENV
+        wsl hostname -i
         cat >> ~/.ssh/config <<EOF
         Host example.pwnme
             User travis
-            HostName localhost
+            HostName 127.0.1.1
             Port 2200
             IdentityFile ~/.ssh/travis
             StrictHostKeyChecking no
