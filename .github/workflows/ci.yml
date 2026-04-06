@@ -21,11 +21,6 @@ jobs:
         use-cache: 'true'
         additional-packages:
           openssh-server
-        wsl-conf: |
-          [boot]
-          systemd=true
-          [wsl2]
-          vmIdleTimeout=-1
 
     - name: Setup SSH config on host
       shell: bash
@@ -46,9 +41,25 @@ jobs:
       shell: wsl-bash {0}
       run: |
         set -e
+        # https://github.com/gardengim/keepwsl
+        cat > /etc/systemd/system/keepwsl.service <<EOF
+        [Unit]
+        Description=keepwsl.service
+
+        [Service]
+        Type=simple
+        ExecStart=/mnt/c/Windows/System32/wsl.exe --exec /bin/sleep infinity
+        Restart=always
+        RestartSec=5
+
+        [Install]
+        WantedBy=default.target
+        EOF
         sed -i 's/#Port 22/Port 2200/' /etc/ssh/sshd_config
         systemctl daemon-reload
         systemctl restart ssh.socket
+        systemctl enable keepwsl
+        systemctl start keepwsl
         useradd -m travis
         passwd --delete --unlock travis
         chsh --shell /bin/bash travis
