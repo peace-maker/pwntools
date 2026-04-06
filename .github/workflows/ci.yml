@@ -21,15 +21,13 @@ jobs:
         use-cache: 'true'
         additional-packages:
           openssh-server
-          iproute2
 
-    - name: Setup Linux SSH server
+    - name: Setup SSH config
       shell: bash
       run: |
         mkdir -p ~/.ssh
         ssh-keygen -t rsa -f ~/.ssh/travis -N ''
         echo "TRAVIS_SSH_PUBLIC_KEY=$(cat ~/.ssh/travis.pub)" >> $GITHUB_ENV
-        wsl hostname -I
         cat >> ~/.ssh/config <<EOF
         Host example.pwnme
             User travis
@@ -46,8 +44,6 @@ jobs:
         sed -i 's/#Port 22/Port 2200/' /etc/ssh/sshd_config
         systemctl daemon-reload
         systemctl restart ssh.socket
-        ss -tulnp
-        cat /etc/wsl.conf
         useradd -m travis
         passwd --delete --unlock travis
         chsh --shell /bin/bash travis
@@ -56,21 +52,21 @@ jobs:
         chown -R travis:travis /home/travis/.ssh
         chmod 600 /home/travis/.ssh/authorized_keys
 
-    # - name: Install dependencies
-    #   run: |
-    #     pip install --upgrade pip
-    #     pip install --upgrade --editable .
+    - name: Install dependencies
+      run: |
+        pip install --upgrade pip
+        pip install --upgrade --editable .
 
-    # - name: Install documentation dependencies
-    #   run: pip install -r docs/requirements.txt
+    - name: Install documentation dependencies
+      run: pip install -r docs/requirements.txt
 
     - name: Sanity checks
       run: |
         ssh -v travis@example.pwnme id
-        # python -bb -c 'from pwn import *'
-        # python -bb examples/text.py
+        python -bb -c 'from pwn import *'
+        python -bb examples/text.py
 
-    # - name: Coverage doctests
-    #   run: |
-    #     python -bb -m coverage run -m sphinx -b doctest docs/source docs/build/doctest
+    - name: Coverage doctests
+      run: |
+        python -bb -m coverage run -m sphinx -b doctest docs/source docs/build/doctest
 
