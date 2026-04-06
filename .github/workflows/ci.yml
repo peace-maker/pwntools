@@ -15,16 +15,19 @@ jobs:
       with:
         python-version: '3.12'
     
+    - uses: Vampire/setup-wsl@v6
+      with:
+        distribution: Ubuntu-24.04
+        use-cache: 'true'
+        additional-packages:
+          openssh-server
+
     - name: Setup Linux SSH server
       shell: bash
       run: |
-        docker run --name sshd-linux --rm --entrypoint "/usr/bin/sleep" --detach --publish 2200:22 ubuntu:latest infinity
-        docker exec sshd-linux bash -c "apt-get update && apt-get install -y openssh-server && service ssh start"
         mkdir -p ~/.ssh
         ssh-keygen -t rsa -f ~/.ssh/travis -N ''
-        docker exec --user root sshd-linux bash -c "useradd -m travis && passwd --delete --unlock travis && chsh --shell /bin/bash travis"
-        docker exec --user travis sshd-linux bash -c "mkdir -p /home/travis/.ssh && chmod 700 /home/travis/.ssh"
-        docker cp ~/.ssh/travis.pub sshd-linux:/home/travis/.ssh/authorized_keys
+        echo "TRAVIS_SSH_PUBLIC_KEY=$(cat ~/.ssh/travis.pub)" >> $GITHUB_ENV
         cat >> ~/.ssh/config <<EOF
         Host example.pwnme
             User travis
@@ -33,7 +36,18 @@ jobs:
             IdentityFile ~/.ssh/travis
             StrictHostKeyChecking no
         EOF
-        ssh -v travis@example.pwnme id
+    
+    - name: Setup SSH in WSL2
+      shell: wsl-bash {0}
+      run: |
+        sed -i 's/#Port 22/Port 2200/' /etc/ssh/sshd_config
+        service ssh start
+        useradd -m travis
+        passwd --delete --unlock travis
+        chsh --shell /bin/bash travis
+        mkdir -p /home/travis/.ssh && chmod 700 /home/travis/.ssh
+        echo "$TRAVIS_SSH_PUBLIC_KEY" > /home/travis/.ssh/authorized_keys
+        chmod 600 /home/travis/.ssh/authorized_keys
 
     - name: Install dependencies
       run: |
@@ -45,6 +59,7 @@ jobs:
 
     - name: Sanity checks
       run: |
+        ssh -v travis@example.pwnme id
         python -bb -c 'from pwn import *'
         python -bb examples/text.py
 
