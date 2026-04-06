@@ -69,5 +69,6 @@ jobs:
 
     - name: Coverage doctests
       run: |
+        wsl --distribution 'Ubuntu-24.04' hostname -I
         python -bb -m coverage run -m sphinx -b doctest docs/source docs/build/doctest
 

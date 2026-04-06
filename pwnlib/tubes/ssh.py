@@ -709,7 +709,7 @@ class ssh(Timeout, Logger):
                 if 'hostname' in host_config:
                     self.host = host = host_config['hostname']
                 if port is None and 'port' in host_config:
-                    self.port = port = int(host_config['port']) 
+                    self.port = port = int(host_config['port'])
                 if not user and 'user' in host_config:
                     self.user = user = host_config['user']
                 if not keyfile and 'identityfile' in host_config:
@@ -764,6 +764,7 @@ class ssh(Timeout, Logger):
                 proxy_sock = None
 
             try:
+                print("Connecting to SSH host %s:%d as %s" % (host, port, user))
                 self.client.connect(host, port, user, password, key, keyfiles, self.timeout, allow_agent=ssh_agent, compress=True, sock=proxy_sock, look_for_keys=not ignore_config, disabled_algorithms=disabled_algorithms)
             except paramiko.BadHostKeyException as e:
                 self.error(f"""Remote host {host} is using a different key than stated in known_hosts
