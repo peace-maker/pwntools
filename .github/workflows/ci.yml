@@ -46,7 +46,7 @@ jobs:
         passwd --delete --unlock travis
         chsh --shell /bin/bash travis
         mkdir -p /home/travis/.ssh && chmod 700 /home/travis/.ssh
-        echo "$TRAVIS_SSH_PUBLIC_KEY" > /home/travis/.ssh/authorized_keys
+        echo "${{ env.TRAVIS_SSH_PUBLIC_KEY }}" > /home/travis/.ssh/authorized_keys
         chmod 600 /home/travis/.ssh/authorized_keys
 
     - name: Install dependencies
