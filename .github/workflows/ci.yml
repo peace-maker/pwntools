@@ -31,7 +31,7 @@ jobs:
         cat >> ~/.ssh/config <<EOF
         Host example.pwnme
             User travis
-            HostName 127.0.0.1
+            HostName localhost
             Port 2200
             IdentityFile ~/.ssh/travis
             StrictHostKeyChecking no
@@ -41,9 +41,12 @@ jobs:
       shell: wsl-bash {0}
       run: |
         set -e
+        systemctl start ssh
         sed -i 's/#Port 22/Port 2200/' /etc/ssh/sshd_config
         systemctl daemon-reload
-        systemctl start ssh
+        systemctl restart ssh.socket
+        systemctl status ssh
+        systemctl status ssh.socket
         useradd -m travis
         passwd --delete --unlock travis
         chsh --shell /bin/bash travis
