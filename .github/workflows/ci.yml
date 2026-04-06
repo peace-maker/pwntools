@@ -7,14 +7,6 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 30
     continue-on-error: true
-    services:
-      sshd-linux:
-        image: ubuntu:latest
-        entrypoint: /usr/bin/sleep
-        command: >-
-          infinity
-        ports:
-          - 2200:22
     steps:
     - uses: actions/checkout@v6
 
@@ -26,6 +18,7 @@ jobs:
     - name: Setup Linux SSH server
       shell: bash
       run: |
+        docker run --name sshd-linux --rm --entrypoint "/usr/bin/sleep" --detach --publish 2200:22 ubuntu:latest infinity
         docker exec sshd-linux bash -c "apt-get update && apt-get install -y openssh-server && service ssh start"
         mkdir -p ~/.ssh
         ssh-keygen -t rsa -f ~/.ssh/travis -N ''
