@@ -718,7 +718,6 @@ class ssh(Timeout, Logger):
                         keyfile = None
         except Exception as e:
             self.debug("An error occurred while parsing ~/.ssh/config:\n%s" % e)
-        self.error("Connecting to %s on port %d as %s with %s", host, port, user, keyfile if keyfile else 'no keyfile')
         
         if port is None:
             self.port = port = 22
