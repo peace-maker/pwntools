@@ -21,6 +21,7 @@ jobs:
         use-cache: 'true'
         additional-packages:
           openssh-server
+          python-is-python3
 
     - name: Setup SSH config on host
       shell: bash

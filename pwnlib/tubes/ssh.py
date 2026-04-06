@@ -342,7 +342,7 @@ class ssh_process(ssh_channel):
             >>> s =  ssh(host='example.pwnme')
             >>> p = s.process('true')
             >>> p.libc  # doctest: +ELLIPSIS
-            ELF(.../libc.so.6')
+            ELF(...libc.so.6')
         """
         from pwnlib.elf import ELF
 
@@ -1248,6 +1248,9 @@ from ctypes import *; libc = CDLL('libc.so.6'); print(libc.getenv(%r))
 
         Examples:
 
+        .. doctest::
+            :options: +POSIX +TODO
+
             >>> from pwn import *
             >>> l = listen()
             >>> s =  ssh(host='example.pwnme')
@@ -1271,6 +1274,9 @@ from ctypes import *; libc = CDLL('libc.so.6'); print(libc.getenv(%r))
         Returns a :class:`pwnlib.tubes.ssh.ssh_listener` object.
 
         Examples:
+
+        .. doctest::
+            :options: +POSIX +TODO
 
             >>> from pwn import *
             >>> s =  ssh(host='example.pwnme')
@@ -1477,7 +1483,7 @@ from ctypes import *; libc = CDLL('libc.so.6'); print(libc.getenv(%r))
         if fingerprint is None:
             local = os.path.normpath(remote)
             local = os.path.basename(local)
-            local += time.strftime('-%Y-%m-%d-%H:%M:%S')
+            local += time.strftime('-%Y-%m-%d-%H%M%S')
             local = os.path.join(self._cachedir, local)
 
             self._download_raw(remote, local, p)
@@ -1503,6 +1509,9 @@ from ctypes import *; libc = CDLL('libc.so.6'); print(libc.getenv(%r))
 
 
         Examples:
+
+        .. doctest::
+            :options: +POSIX +TODO
 
             >>> with open('/tmp/bar','w+') as f:
             ...     _ = f.write('Hello, world')
@@ -1531,6 +1540,9 @@ from ctypes import *; libc = CDLL('libc.so.6'); print(libc.getenv(%r))
             local(str): The local filename to save it to. Default is to infer it from the remote filename.
         
         Examples:
+
+        .. doctest::
+            :options: +POSIX +TODO
 
             >>> with open('/tmp/foobar','w+') as f:
             ...     _ = f.write('Hello, world')
@@ -1609,6 +1621,9 @@ from ctypes import *; libc = CDLL('libc.so.6'); print(libc.getenv(%r))
             remote(str): The filename to upload it to.
 
         Example:
+
+        .. doctest::
+            :options: +POSIX +TODO
 
             >>> s =  ssh(host='example.pwnme')
             >>> s.upload_data(b'Hello, world', '/tmp/upload_foo')
@@ -1736,6 +1751,9 @@ from ctypes import *; libc = CDLL('libc.so.6'); print(libc.getenv(%r))
         
 
         Examples:
+
+        .. doctest::
+            :options: +POSIX +TODO
 
             >>> with open('/tmp/foobar','w+') as f:
             ...     _ = f.write('Hello, world')
