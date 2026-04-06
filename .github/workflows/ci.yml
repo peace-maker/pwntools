@@ -52,16 +52,17 @@ jobs:
         chown -R travis:travis /home/travis/.ssh
         chmod 600 /home/travis/.ssh/authorized_keys
 
-    # - name: Install dependencies
-    #   run: |
-    #     pip install --upgrade pip
-    #     pip install --upgrade --editable .
+    - name: Install dependencies
+      run: |
+        pip install --upgrade pip
+        pip install --upgrade --editable .
 
     # - name: Install documentation dependencies
     #   run: pip install -r docs/requirements.txt
 
     - name: Sanity checks
       run: |
+        wsl --distribution 'Ubuntu-24.04' hostname -I
         ssh -v travis@example.pwnme id
         # python -bb -c 'from pwn import *'
         # python -bb examples/text.py
