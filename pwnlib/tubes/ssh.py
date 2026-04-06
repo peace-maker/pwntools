@@ -594,7 +594,7 @@ class ssh(Timeout, Logger):
     _cwd = '.'
     _tried_sftp = False
 
-    def __init__(self, user=None, host=None, port=22, password=None, key=None,
+    def __init__(self, user=None, host=None, port=None, password=None, key=None,
                  keyfile=None, proxy_command=None, proxy_sock=None, level=None,
                  cache=True, ssh_agent=False, ignore_config=False, raw=False, 
                  auth_none=False, disabled_algorithms=None, *a, **kw):
@@ -603,7 +603,7 @@ class ssh(Timeout, Logger):
         Arguments:
             user(str): The username to log in with
             host(str): The hostname to connect to
-            port(int): The port to connect to
+            port(int): The port to connect to. Defaults to 22
             password(str): Try to authenticate using this password
             key(str): Try to authenticate using this private key. The string should be the actual private key.
             keyfile(str): Try to authenticate using this private key. The string should be a filename.
@@ -708,6 +708,8 @@ class ssh(Timeout, Logger):
                 host_config = ssh_config.lookup(host)
                 if 'hostname' in host_config:
                     self.host = host = host_config['hostname']
+                if port is None and 'port' in host_config:
+                    self.port = port = int(host_config['port']) 
                 if not user and 'user' in host_config:
                     self.user = user = host_config['user']
                 if not keyfile and 'identityfile' in host_config:
@@ -716,6 +718,9 @@ class ssh(Timeout, Logger):
                         keyfile = None
         except Exception as e:
             self.debug("An error occurred while parsing ~/.ssh/config:\n%s" % e)
+        
+        if port is None:
+            self.port = port = 22
 
         # Create paramiko.PKey if key is provided as str or bytes
         if isinstance(key, (str, bytes, bytearray)):
