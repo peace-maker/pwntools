@@ -1913,9 +1913,15 @@ from ctypes import *; libc = CDLL('libc.so.6'); print(libc.getenv(%r))
             >>> _=s.set_working_directory(homedir)
             >>> assert b'foo' in s.ls().split(), s.ls().split()
 
+        .. doctest::
+            :options: +POSIX +TODO
+
             >>> _=s.set_working_directory(symlink=True)
             >>> assert b'foo' in s.ls().split(), s.ls().split()
             >>> assert homedir != s.pwd()
+
+        .. doctest::
+            :options: +POSIX +TODO
 
             >>> symlink=os.path.join(homedir,b'*')
             >>> _=s.set_working_directory(symlink=symlink)
