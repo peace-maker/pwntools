@@ -1580,7 +1580,7 @@ class ContextType(object):
 
     @_validator
     def windbg_binary(self, value):
-        """Path to the binary that is used when running WinDbg locally.
+        r"""Path to the binary that is used when running WinDbg locally.
 
         This is useful when you have multiple versions of WinDbg installed or the WinDbg binary is
         called something different.
@@ -1597,7 +1597,7 @@ class ContextType(object):
 
     @_validator
     def windbgx_binary(self, value):
-        """Path to the binary that is used when running WinDbgX locally.
+        r"""Path to the binary that is used when running WinDbgX locally.
 
         This is useful when you have multiple versions of WinDbgX installed or the WinDbgX binary is
         called something different.

@@ -40,8 +40,10 @@ jobs:
     - name: Setup SSH in WSL2
       shell: wsl-bash {0}
       run: |
+        set -e
         sed -i 's/#Port 22/Port 2200/' /etc/ssh/sshd_config
-        service ssh start
+        systemctl daemon-reload
+        systemctl start ssh
         useradd -m travis
         passwd --delete --unlock travis
         chsh --shell /bin/bash travis
