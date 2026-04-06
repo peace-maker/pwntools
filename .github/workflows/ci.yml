@@ -21,6 +21,7 @@ jobs:
         use-cache: 'true'
         additional-packages:
           openssh-server
+          iproute2
 
     - name: Setup Linux SSH server
       shell: bash
@@ -44,11 +45,13 @@ jobs:
         sed -i 's/#Port 22/Port 2200/' /etc/ssh/sshd_config
         systemctl daemon-reload
         systemctl restart ssh.socket
+        ss -tulnp
         useradd -m travis
         passwd --delete --unlock travis
         chsh --shell /bin/bash travis
         mkdir -p /home/travis/.ssh && chmod 700 /home/travis/.ssh
         echo "${{ env.TRAVIS_SSH_PUBLIC_KEY }}" > /home/travis/.ssh/authorized_keys
+        chown -R travis:travis /home/travis/.ssh
         chmod 600 /home/travis/.ssh/authorized_keys
 
     - name: Install dependencies
