@@ -3,10 +3,23 @@ During exploit development, it is frequently useful to debug the
 target binary under WinDbg. This module provides a simple interface
 to do so under Windows.
 
+By default, :attr:`.context.debugger` is set to ``"auto"``, which will
+attempt to automatically select an appropriate debugger based on the
+available debuggers on the system.
+
+The order of preference is:
+- ``windbgx``
+- ``windbg``
+
+If automatic lookup fails, you can manually set :attr:`.context.debugger` to
+the debugger of your choice and provide the path to the debugger binary
+using :attr:`.context.windbgx_binary` or :attr:`.context.windbg_binary`.
+
 Useful Functions
 ----------------
 
 - :func:`attach` - Attach to an existing process
+- :func:`debug` - Start a new process under the debugger
 
 Debugging Tips
 --------------
@@ -56,7 +69,6 @@ You can cause these lines to be a no-op by running your script with the
 Member Documentation
 ===============================
 """
-from __future__ import absolute_import
 import atexit
 import os
 import pathlib
@@ -170,7 +182,7 @@ def debug(args, dbgscript=None, exe=None, env=None, creationflags=0, **kwargs):
             # Create a new process, and stop it at 'main'
             io = windbg.debug('calc', '''
             bp $exentry
-            go
+            g
             ''')
 
         When the debugger opens via :func:`.debug`, it will initially be stopped on the very first
@@ -212,7 +224,7 @@ def binary():
         str: Name of selected debugger.
         str: Path to the appropriate debugger binary to use.
     """
-    if context.debugger == '':
+    if context.debugger == 'auto':
         for debugger in context.debugger_choices:
             with context.local(debugger=debugger, log_level='critical'):
                 try:
@@ -235,11 +247,17 @@ def binary():
             return context.debugger, windbg
 
         windbg = misc.which('windbg.exe')
-        if not windbg:
-            # TODO: check host architecture and use proper x86/x64/arm toolkit path.
-            windbg = misc.which(r'C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\windbg.exe')
-        if not windbg:
-            log.error('windbg is not installed or in system PATH')
+        if not windbg and os.environ.get('ProgramFiles(x86)'):
+            arch_str = {
+                'i386': 'x86',
+                'amd64': 'x64',
+                'aarch64': 'arm64',
+            }.get(context.arch)
+            if not arch_str:
+                log.error('Unsupported architecture for windbg: {}'.format(context.arch))
+            windbg = os.path.join(os.environ.get('ProgramFiles(x86)'), 'Windows Kits', '10', 'Debuggers', arch_str, 'windbg.exe')
+        if not windbg or not os.path.exists(windbg):
+            log.error('windbg is not installed or in system PATH. You can set context.windbg_binary to specify the path manually.')
         return context.debugger, windbg
 
     if context.debugger == 'cdb':
@@ -250,11 +268,17 @@ def binary():
             return context.debugger, cdb
 
         cdb = misc.which('cdb.exe')
-        if not cdb:
-            # TODO: check host architecture and use proper x86/x64/arm toolkit path.
-            cdb = misc.which(r'C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\cdb.exe')
-        if not cdb:
-            log.error('cdb is not installed or in system PATH')
+        if not cdb and os.environ.get('ProgramFiles(x86)'):
+            arch_str = {
+                'i386': 'x86',
+                'amd64': 'x64',
+                'aarch64': 'arm64',
+            }.get(context.arch)
+            if not arch_str:
+                log.error('Unsupported architecture for cdb: {}'.format(context.arch))
+            cdb = os.path.join(os.environ.get('ProgramFiles(x86)'), 'Windows Kits', '10', 'Debuggers', arch_str, 'cdb.exe')
+        if not cdb or not os.path.exists(cdb):
+            log.error('cdb is not installed or in system PATH. You can set context.cdb_binary to specify the path manually.')
         return context.debugger, cdb
 
     if context.debugger == 'windbgx':
@@ -266,9 +290,9 @@ def binary():
 
         windbg = misc.which('windbgx.exe')
         if not windbg and os.environ.get('LocalAppData'):
-            windbg = misc.which(os.path.join(os.environ.get('LocalAppData'), r'Microsoft\WindowsApps\WinDbgX.exe'))
-        if not windbg:
-            log.error('windbgx is not installed or in system PATH')
+            windbg = os.path.join(os.environ.get('LocalAppData'), 'Microsoft', 'WindowsApps', 'WinDbgX.exe')
+        if not windbg or not os.path.exists(windbg):
+            log.error('windbgx is not installed or in system PATH. You can set context.windbgx_binary to specify the path manually.')
         return context.debugger, windbg
     log.error('Invalid debugger selection: %s', context.debugger)
 
@@ -392,7 +416,7 @@ def attach(target, dbgscript=None, dbg_args=[]):
     dbgscript = dbgscript or ''
     if isinstance(dbgscript, str):
         dbgscript = dbgscript.split('\n')
-    with tempfile.NamedTemporaryFile(mode='w+', delete=False) as tmp:
+    with tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix='.dbg') as tmp:
         tmp.write('\n'.join(script.strip() for script in dbgscript if script.strip()))
         tmp.flush()
         dbgscript_file = tmp.name
@@ -405,7 +429,7 @@ def attach(target, dbgscript=None, dbg_args=[]):
         else:
             log.warn_once('dbgscript is not supported for %s' % debugger)
     
-    log.info("Launching a new process: %r" % cmd)
+    log.info("Launching a new process: %r", cmd)
 
     if debugger == 'cdb':
         debugger_pid = misc.run_in_new_terminal(cmd)

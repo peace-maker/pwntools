@@ -1,11 +1,7 @@
-# -*- coding: utf-8 -*-
 """
 Implements context management so that nested/scoped contexts and threaded
 contexts work properly and as expected.
 """
-from __future__ import absolute_import
-from __future__ import division
-
 import atexit
 import collections
 import errno
@@ -282,7 +278,7 @@ class ContextType(object):
 
     The context is usually specified at the top of the Python file for clarity. ::
 
-        #!/usr/bin/env python
+        #!/usr/bin/env python3
         context.update(arch='i386', os='linux')
 
     Currently supported properties and their defaults are listed below.
@@ -368,7 +364,7 @@ class ContextType(object):
         'windbgx_binary': "",
         'cdb_binary': "",
         'x64dbg_binary': "",
-        'debugger': "",
+        'debugger': "auto",
         'kernel': None,
         'local_libcdb': "/var/lib/libc-database",
         'log_level': logging.INFO,
@@ -459,7 +455,7 @@ class ContextType(object):
     valid_signed = sorted(signednesses)
 
     #: Valid values for :attr:`debugger`
-    debugger_choices = ['gdb', 'windbg', 'windbgx', 'cdb', 'x64dbg']
+    debugger_choices = ['auto', 'gdb', 'windbgx', 'windbg', 'cdb', 'x64dbg']
 
     def __init__(self, **kwargs):
         """
@@ -1619,7 +1615,7 @@ class ContextType(object):
 
     @_validator
     def cdb_binary(self, value):
-        """Path to the binary that is used when running cdb locally.
+        r"""Path to the binary that is used when running cdb locally.
 
         This is useful when you have multiple versions of cdb installed or the cdb binary is
         called something different.
@@ -1636,7 +1632,7 @@ class ContextType(object):
 
     @_validator
     def x64dbg_binary(self, value):
-        """Path to the binary that is used when running x64dbg locally.
+        r"""Path to the binary that is used when running x64dbg locally.
 
         Should be set to the x96dbg.exe launcher binary to handle 32-bit and 64-bit binaries.
 
@@ -1659,11 +1655,15 @@ class ContextType(object):
         - ``gdb``: Use GDB as the debugger.
         - ``windbg``: Use WinDbg as the debugger.
         - ``windbgx``: Use WinDbgX as the debugger.
+        - ``cdb``: Use cdb as the debugger.
         - ``x64dbg``: Use x64dbg as the debugger.
 
-        Defaults to ``windbg`` on Windows and ``gdb`` otherwise.
+        Defaults to ``windbgx`` on Windows and ``gdb`` on other platforms.
+
+        ``auto``: Automatically select the available debugger based on the platform.
+        On Windows, it will prefer ``windbgx`` over ``windbg`` if both are available.
         
-        Default value is ``""``.
+        Default value is ``"auto"``.
         """
         if value not in self.debugger_choices:
             raise AttributeError("debugger must be one of %r" % sorted(self.debugger_choices))

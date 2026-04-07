@@ -44,9 +44,6 @@ An ELF can also be created from in-memory bytes.
 Module Members
 --------------
 """
-from __future__ import absolute_import
-from __future__ import division
-
 import collections
 import gzip
 import mmap
@@ -1205,7 +1202,7 @@ class ELF(ELFFile, Binary):
         return 0
 
     def search(self, needle, writable = False, executable = False):
-        """search(needle, writable = False, executable = False) -> generator
+        r"""search(needle, writable = False, executable = False) -> generator
 
         Search the ELF's virtual address space for the specified string.
 
@@ -1225,7 +1222,7 @@ class ELF(ELFFile, Binary):
 
         Examples:
 
-            An ELF header starts with the bytes ``\\x7fELF``, so we
+            An ELF header starts with the bytes ``\x7fELF``, so we
             sould be able to find it easily.
 
             >>> bash = ELF('/bin/bash')
@@ -1786,7 +1783,7 @@ class ELF(ELFFile, Binary):
 
     @property
     def nx(self):
-        """:class:`bool`: Whether the current binary uses NX protections.
+        r""":class:`bool`: Whether the current binary uses NX protections.
 
         Specifically, we are checking for ``READ_IMPLIES_EXEC`` being set
         by the kernel, as a result of honoring ``PT_GNU_STACK`` in the kernel.
@@ -1849,7 +1846,7 @@ class ELF(ELFFile, Binary):
             | the rest  | [#the_rest]_ | exec / non-exec / missing |                                                | enabled  |
             +-----------+--------------+---------------------------+------------------------------------------------+----------+
 
-            \\* Hardware limitations are ignored.
+            \* Hardware limitations are ignored.
 
         If ``READ_IMPLIES_EXEC`` is set, then `all readable pages are executable`__.
 
@@ -1865,7 +1862,7 @@ class ELF(ELFFile, Binary):
 
         .. code-block:: c
 
-            #define elf_read_implies_exec(ex, executable_stack)	\\
+            #define elf_read_implies_exec(ex, executable_stack)	\
                 (executable_stack != EXSTACK_DISABLE_X)
 
         .. [#x86_5.8]
@@ -1873,7 +1870,7 @@ class ELF(ELFFile, Binary):
 
         .. code-block:: c
 
-            #define elf_read_implies_exec(ex, executable_stack)	\\
+            #define elf_read_implies_exec(ex, executable_stack)	\
                 (mmap_is_ia32() && executable_stack == EXSTACK_DEFAULT)
 
         `mmap_is_ia32()`__:
@@ -1954,7 +1951,7 @@ class ELF(ELFFile, Binary):
 
             #ifdef __powerpc64__
             /* stripped */
-            # define elf_read_implies_exec(ex, exec_stk) (is_32bit_task() ? \\
+            # define elf_read_implies_exec(ex, exec_stk) (is_32bit_task() ? \
                     (exec_stk == EXSTACK_DEFAULT) : 0)
             #else
             # define elf_read_implies_exec(ex, exec_stk) (exec_stk == EXSTACK_DEFAULT)
@@ -1965,7 +1962,7 @@ class ELF(ELFFile, Binary):
 
         .. code-block:: c
 
-            #define elf_read_implies_exec(ex, executable_stack)					\\
+            #define elf_read_implies_exec(ex, executable_stack)					\
                 ((executable_stack!=EXSTACK_DISABLE_X) && ((ex).e_flags & EF_IA_64_LINUX_EXECUTABLE_STACK) != 0)
 
         EF_IA_64_LINUX_EXECUTABLE_STACK__:
@@ -2219,7 +2216,7 @@ class ELF(ELFFile, Binary):
                 for name, message in sorted(values):
                     line = '{} = {}'.format(name, red(str(self.config.get(name, None))))
                     if message:
-                        line += ' ({})'.format(message)
+                        line += f' ({message})'
                     res.append('    ' + line)
 
             # res.extend(sorted(config_opts))
@@ -2295,6 +2292,21 @@ class ELF(ELFFile, Binary):
         self._update_args(kw)
         return self.write(address, packing.p64(data, *a, **kw))
 
+    def p56(self,  address, data, *a, **kw):
+        """Writes a 56-bit integer ``data`` to the specified ``address``"""
+        self._update_args(kw)
+        return self.write(address, packing.p56(data, *a, **kw))
+
+    def p48(self,  address, data, *a, **kw):
+        """Writes a 48-bit integer ``data`` to the specified ``address``"""
+        self._update_args(kw)
+        return self.write(address, packing.p48(data, *a, **kw))
+
+    def p40(self,  address, data, *a, **kw):
+        """Writes a 40-bit integer ``data`` to the specified ``address``"""
+        self._update_args(kw)
+        return self.write(address, packing.p40(data, *a, **kw))
+
     def p32(self,  address, data, *a, **kw):
         """Writes a 32-bit integer ``data`` to the specified ``address``"""
         self._update_args(kw)
@@ -2319,6 +2331,21 @@ class ELF(ELFFile, Binary):
         """Unpacks an integer from the specified ``address``."""
         self._update_args(kw)
         return packing.u64(self.read(address, 8), *a, **kw)
+
+    def u56(self,    address, *a, **kw):
+        """Unpacks an integer from the specified ``address``."""
+        self._update_args(kw)
+        return packing.u56(self.read(address, 7), *a, **kw)
+
+    def u48(self,    address, *a, **kw):
+        """Unpacks an integer from the specified ``address``."""
+        self._update_args(kw)
+        return packing.u48(self.read(address, 6), *a, **kw)
+
+    def u40(self,    address, *a, **kw):
+        """Unpacks an integer from the specified ``address``."""
+        self._update_args(kw)
+        return packing.u40(self.read(address, 5), *a, **kw)
 
     def u32(self,    address, *a, **kw):
         """Unpacks an integer from the specified ``address``."""
