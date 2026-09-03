@@ -63,7 +63,7 @@ class Maximum(float):
         return 'pwnlib.timeout.maximum'
 maximum = Maximum(2**20)
 
-TimeoutValue: TypeAlias = float | Maximum | TimeoutDefault
+TimeoutValue: TypeAlias = float | Maximum | TimeoutDefault | None
 
 class Timeout:
     """
@@ -192,7 +192,7 @@ class Timeout:
         as a default argument with less complexity.
         """
         # Don't count down from infinity
-        if timeout is self.maximum:
+        if timeout is self.maximum or timeout is self.forever:
             return _DummyContext
 
         if timeout is self.default and self.timeout is self.maximum:
