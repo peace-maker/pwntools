@@ -63,7 +63,7 @@ class Maximum(float):
         return 'pwnlib.timeout.maximum'
 maximum = Maximum(2**20)
 
-TimeoutValue: TypeAlias = float | Maximum | TimeoutDefault
+TimeoutValue: TypeAlias = float | Maximum | TimeoutDefault | None
 
 class Timeout:
     """

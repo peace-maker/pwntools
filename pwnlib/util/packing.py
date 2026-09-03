@@ -160,7 +160,7 @@ def pack(number: int, word_size: Literal["all"] | int | None = None, endianness:
             return b''.join(reversed(out))
 
 @LocalNoarchContext
-def unpack(data: BytesLike, word_size: Literal["all"] | int | None = None) -> int:
+def unpack(data: BytesLike, word_size: Literal["all"] | int | None = None, **kwargs: Any) -> int:
     r"""unpack(data, word_size = None, *, endianness = None, sign = None, **kwargs) -> int
 
     Unpacks arbitrary-sized integer.
@@ -781,7 +781,7 @@ def make_unpacker(word_size: Literal["all"] | int | None = None, endianness: str
             (64, 1, 1): _u64bs,
         }[word_size, endianness, sign]
     else:
-        return lambda number: unpack(number, word_size, endianness, sign)
+        return lambda number: unpack(number, word_size, endianness=endianness, sign=sign)
 
 def _fit(pieces, preprocessor, packer, filler, stacklevel: int = 1):
 
