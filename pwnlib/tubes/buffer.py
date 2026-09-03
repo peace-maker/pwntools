@@ -1,3 +1,4 @@
+from __future__ import annotations
 from pwnlib.context import context
 
 
@@ -29,12 +30,12 @@ class Buffer:
         The ``0th`` item in the buffer is the oldest item, and
         will be received first.
     """
-    def __init__(self, buffer_fill_size = None):
-        self.data = [] # Buffer
+    def __init__(self, buffer_fill_size: int | None = None):
+        self.data: list[bytes] = [] # Buffer
         self.size = 0  # Length
         self.buffer_fill_size = buffer_fill_size
 
-    def __len__(self):
+    def __len__(self) -> int:
         """
         >>> b = Buffer()
         >>> b.add(b'lol')
@@ -46,10 +47,10 @@ class Buffer:
         """
         return self.size
 
-    def __nonzero__(self):
+    def __bool__(self) -> bool:
         return len(self) > 0
 
-    def __contains__(self, x):
+    def __contains__(self, x: bytes) -> bool:
         """
         >>> b = Buffer()
         >>> b.add(b'asdf')
@@ -64,7 +65,7 @@ class Buffer:
                 return True
         return False
 
-    def index(self, x):
+    def index(self, x: bytes) -> int:
         """
         >>> b = Buffer()
         >>> b.add(b'asdf')
@@ -79,14 +80,14 @@ class Buffer:
             sofar += len(b)
         raise IndexError()
 
-    def add(self, data):
+    def add(self, data: bytes | Buffer) -> None:
         """
         Adds data to the buffer.
 
         Arguments:
             data(str,Buffer): Data to add
         """
-        # Fast path for ''
+        # Fast path for b''
         if not data: return
 
         if isinstance(data, Buffer):
@@ -96,7 +97,7 @@ class Buffer:
             self.size += len(data)
             self.data.append(data)
 
-    def unget(self, data):
+    def unget(self, data: bytes | Buffer) -> None:
         """
         Places data at the front of the buffer.
 
@@ -121,7 +122,7 @@ class Buffer:
             self.data.insert(0, data)
             self.size += len(data)
 
-    def get(self, want=float('inf')):
+    def get(self, want: int = -1) -> bytes:
         """
         Retrieves bytes from the buffer.
 
@@ -142,7 +143,7 @@ class Buffer:
             b'elloworld'
         """
         # Fast path, get all of the data
-        if want >= self.size:
+        if want < 0 or want >= self.size:
             data   = b''.join(self.data)
             self.size = 0
             self.data = []
@@ -171,7 +172,7 @@ class Buffer:
 
         return data
 
-    def get_fill_size(self, size=None):
+    def get_fill_size(self, size: int | None = None) -> int:
         """
         Retrieves the default fill size for this buffer class.
 
