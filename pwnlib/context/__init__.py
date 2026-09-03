@@ -2,10 +2,13 @@
 Implements context management so that nested/scoped contexts and threaded
 contexts work properly and as expected.
 """
+from __future__ import annotations
 import atexit
+import builtins
 import collections
 import errno
 import functools
+from io import TextIOWrapper
 import logging
 import os
 import os.path
@@ -17,27 +20,34 @@ import sys
 import tempfile
 import threading
 import time
+from typing import TYPE_CHECKING, Any, AnyStr, Callable, Iterator, Literal, ParamSpec, TextIO, TypeVar, cast
 
 import socks
 
 from pwnlib.config import register_config
 from pwnlib.device import Device
-from pwnlib.timeout import Timeout
+from pwnlib.internal.typing import ASCIIStr, StrOrBytesPath
+from pwnlib.timeout import Timeout, TimeoutValue
 
 from collections.abc import Iterable
+
+if TYPE_CHECKING:
+    # avoid circlular imports
+    from pwnlib.tubes.ssh import ssh
+    from _typeshed import ConvertibleToInt
 
 __all__ = ['context', 'ContextType', 'Thread']
 
 _original_socket = socket.socket
 
 class _devnull:
-    name = None
-    def write(self, *a, **kw): pass
-    def read(self, *a, **kw):  return ''
-    def flush(self, *a, **kw): pass
-    def close(self, *a, **kw): pass
+    name: str | None = None
+    def write(self, *a: Any, **kw: Any) -> int: return 0
+    def read(self, *a: Any, **kw: Any) -> str:  return ''
+    def flush(self, *a: Any, **kw: Any) -> None: pass
+    def close(self, *a: Any, **kw: Any) -> None: pass
 
-class _defaultdict(dict):
+class _defaultdict(dict[str, Any]):
     """
     Dictionary which loads missing keys from another dictionary.
 
@@ -66,7 +76,7 @@ class _defaultdict(dict):
         ...
         KeyError: 'baz'
     """
-    def __init__(self, default=None):
+    def __init__(self, default: dict[str, Any] | None = None):
         super(_defaultdict, self).__init__()
         if default is None:
             default = {}
@@ -74,7 +84,7 @@ class _defaultdict(dict):
         self.default = default
 
 
-    def __missing__(self, key):
+    def __missing__(self, key: str) -> Any:
         return self.default[key]
 
 class _DictStack:
@@ -101,34 +111,34 @@ class _DictStack:
         >>> t
         {'key': 'value'}
     """
-    def __init__(self, default):
+    def __init__(self, default: dict[str, Any] | None = None) -> None:
         self._current = _defaultdict(default)
-        self.__stack  = []
+        self.__stack: list[dict[str, Any]]  = []
 
-    def push(self):
+    def push(self) -> None:
         self.__stack.append(self._current.copy())
 
-    def pop(self):
+    def pop(self) -> None:
         self._current.clear()
         self._current.update(self.__stack.pop())
 
-    def copy(self):
+    def copy(self) -> dict[str, Any]:
         return self._current.copy()
 
     # Pass-through container emulation routines
-    def __len__(self):              return self._current.__len__()
-    def __delitem__(self, k):       return self._current.__delitem__(k)
-    def __getitem__(self, k):       return self._current.__getitem__(k)
-    def __setitem__(self, k, v):    return self._current.__setitem__(k, v)
-    def __contains__(self, k):      return self._current.__contains__(k)
-    def __iter__(self):             return self._current.__iter__()
-    def __repr__(self):             return self._current.__repr__()
-    def __eq__(self, other):        return self._current.__eq__(other)
+    def __len__(self) -> int:              return self._current.__len__()
+    def __delitem__(self, k: str) -> None:       return self._current.__delitem__(k)
+    def __getitem__(self, k: str) -> Any:       return self._current.__getitem__(k)
+    def __setitem__(self, k: str, v: Any) -> None:    return self._current.__setitem__(k, v)
+    def __contains__(self, k: str) -> bool:      return self._current.__contains__(k)
+    def __iter__(self) -> Iterator[str]:             return self._current.__iter__()
+    def __repr__(self) -> str:             return self._current.__repr__()
+    def __eq__(self, other) -> bool:        return self._current.__eq__(other)
 
     # Required for keyword expansion operator ** to work
-    def keys(self):                 return self._current.keys()
-    def values(self):               return self._current.values()
-    def items(self):                return self._current.items()
+    def keys(self) -> Any:                 return self._current.keys()
+    def values(self) -> Any:               return self._current.values()
+    def items(self) -> Any:                return self._current.items()
 
 
 class _Tls_DictStack(threading.local, _DictStack):
@@ -148,6 +158,8 @@ class _Tls_DictStack(threading.local, _DictStack):
     """
     pass
 
+_P = ParamSpec("_P")
+_R = TypeVar("_R")
 
 def _validator(validator):
     """
@@ -453,7 +465,7 @@ class ContextType:
     #: Valid values for :attr:`debugger`
     debugger_choices = ['auto', 'gdb', 'windbgx', 'windbg', 'x64dbg']
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: Any) -> None:
         """
         Initialize the ContextType structure.
 
@@ -463,7 +475,7 @@ class ContextType:
         self.update(**kwargs)
 
 
-    def copy(self):
+    def copy(self) -> dict[str, Any]:
         r"""copy() -> dict
         Returns a copy of the current context as a dictionary.
 
@@ -478,10 +490,10 @@ class ContextType:
 
 
     @property
-    def __dict__(self):
+    def __dict__(self) -> dict[str, Any]:
         return self.copy()
 
-    def update(self, *args, **kwargs):
+    def update(self, *args: Any, **kwargs: Any) -> None:
         """
         Convenience function, which is shorthand for setting multiple
         variables at once.
@@ -516,7 +528,7 @@ class ContextType:
         for k,v in kwargs.items():
             setattr(self,k,v)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         v = sorted("%s = %r" % (k,v) for k,v in self._tls._current.items())
         return '%s(%s)' % (self.__class__.__name__, ', '.join(v))
 
@@ -551,17 +563,17 @@ class ContextType:
             1.0
         """
         class LocalContext:
-            def __enter__(a):
+            def __enter__(a) -> ContextType:
                 self._tls.push()
                 self.update(**{k:v for k,v in kwargs.items() if v is not None})
                 return self
 
-            def __exit__(a, *b, **c):
+            def __exit__(a, *b, **c) -> None:
                 self._tls.pop()
 
-            def __call__(self, function, *a, **kw):
+            def __call__(self, function: Callable[_P, _R], *a: _P.args, **kw: _P.kwargs) -> Callable[_P, _R]:
                 @functools.wraps(function)
-                def inner(*a, **kw):
+                def inner(*a: _P.args, **kw: _P.kwargs) -> _R:
                     with self:
                         return function(*a, **kw)
                 return inner
@@ -675,7 +687,7 @@ class ContextType:
         """
         return self.local(log_level='debug')
 
-    def clear(self, *a, **kw):
+    def clear(self, *args: Any, **kwargs: Any) -> None:
         """
         Clears the contents of the context.
         All values are set to their defaults.
@@ -700,11 +712,11 @@ class ContextType:
         """
         self._tls._current.clear()
 
-        if a or kw:
-            self.update(*a, **kw)
+        if args or kwargs:
+            self.update(*args, **kwargs)
 
     @property
-    def native(self):
+    def native(self) -> bool:
         if context.os in ('android', 'baremetal', 'cgc'):
             return False
 
@@ -718,7 +730,7 @@ class ContextType:
             return arch == platform_arch
 
     @_validator
-    def arch(self, arch):
+    def arch(self, arch: str) -> str:
         """
         Target binary architecture.
 
@@ -817,7 +829,7 @@ class ContextType:
         return arch
 
     @_validator
-    def aslr(self, aslr):
+    def aslr(self, aslr: bool) -> bool:
         """
         ASLR settings for new processes.
 
@@ -830,21 +842,21 @@ class ContextType:
         return bool(aslr)
 
     @_validator
-    def kernel(self, arch):
+    def kernel(self, arch: str) -> str:
         """
         Target machine's kernel architecture.
 
         Usually, this is the same as ``arch``, except when
         running a 32-bit binary on a 64-bit kernel (e.g. i386-on-amd64).
 
-        Even then, this doesn't matter much -- only when the the segment
+        Even then, this doesn't matter much -- only when the segment
         registers need to be known
         """
         with self.local(arch=arch):
             return self.arch
 
     @_validator
-    def bits(self, bits):
+    def bits(self, bits: int) -> int:
         """
         Target machine word size, in bits (i.e. the size of general purpose registers).
 
@@ -905,7 +917,7 @@ class ContextType:
         return binary
 
     @property
-    def bytes(self):
+    def bytes(self) -> int:
         """
         Target machine word size, in bytes (i.e. the size of general purpose registers).
 
@@ -924,11 +936,11 @@ class ContextType:
         """
         return self.bits // 8
     @bytes.setter
-    def bytes(self, value):
+    def bytes(self, value: int) -> None:
         self.bits = value*8
 
     @_validator
-    def encoding(self, charset):
+    def encoding(self, charset: str) -> str:
         if charset == 'auto':
             return charset
 
@@ -939,7 +951,7 @@ class ContextType:
         return charset
 
     @_validator
-    def endian(self, endianness):
+    def endian(self, endianness: str) -> Literal['little', 'big']:
         """
         Endianness of the target machine.
 
@@ -976,7 +988,7 @@ class ContextType:
 
 
     @_validator
-    def log_level(self, value):
+    def log_level(self, value: int | ConvertibleToInt | str) -> int:
         """
         Sets the verbosity of ``pwntools`` logging mechanism.
 
@@ -1004,19 +1016,19 @@ class ContextType:
         except ValueError:  pass
 
         # If it is defined in the logging module, success
-        try:                    return getattr(logging, value.upper())
-        except AttributeError:  pass
+        if hasattr(logging, value.upper()):
+            return getattr(logging, value.upper())
 
         # Otherwise, fail
         try:
             level_names = logging._levelToName.values()
         except AttributeError:
-            level_names = filter(lambda x: isinstance(x,str), logging._levelNames)
+            level_names = filter(lambda x: isinstance(x,str), logging._nameToLevel.keys())
         permitted = sorted(level_names)
         raise AttributeError('log_level must be an integer or one of %r' % permitted)
 
     @_validator
-    def log_file(self, value):
+    def log_file(self, value: ASCIIStr | TextIO) -> TextIO:
         r"""
         Sets the target file for all logging output.
 
@@ -1043,26 +1055,24 @@ class ContextType:
             >>> open(bar_txt).readlines()[-1] #doctest: +ELLIPSIS
             '...:DEBUG:...:Hello from bar!\n'
         """
-        if isinstance(value, (bytes, str)):
+        if isinstance(value, (bytes, bytearray, str)):
             # check if mode was specified as "[value],[mode]"
             from pwnlib.util.packing import _need_text
             value = _need_text(value)
             if ',' not in value:
                 value += ',a'
             filename, mode = value.rsplit(',', 1)
-            value = open(filename, mode)
+            if 'b' in mode:
+                raise AttributeError('log_file must be a text file, not a binary file')
+            value = cast(TextIOWrapper, open(filename, mode))
 
         elif not hasattr(value, "fileno"):
             raise AttributeError('log_file must be a file')
 
         # Is this the same file we already have open?
         # If so, don't re-print the banner.
-        if self.log_file and not isinstance(self.log_file, _devnull):
-            a = os.fstat(value.fileno()).st_ino
-            b = os.fstat(self.log_file.fileno()).st_ino
-
-            if a == b:
-                return self.log_file
+        if self.log_file and not isinstance(self.log_file, _devnull) and os.path.sameopenfile(value.fileno(), self.log_file.fileno()):
+            return self.log_file
 
         iso_8601 = '%Y-%m-%dT%H:%M:%S'
         lines = [
@@ -1080,7 +1090,7 @@ class ContextType:
         return value
 
     @_validator
-    def log_console(self, stream):
+    def log_console(self, stream: str | TextIO) -> TextIO:
         """
         Sets the default logging console target.
 
@@ -1098,7 +1108,7 @@ class ContextType:
         return stream
 
     @_validator
-    def local_libcdb(self, path):
+    def local_libcdb(self, path: StrOrBytesPath) -> StrOrBytesPath:
         """
         Sets path to local libc-database, get more information for libc-database:
         https://github.com/niklasb/libc-database
@@ -1119,16 +1129,16 @@ class ContextType:
         """
 
         if not os.path.isdir(path):
-            raise AttributeError("'%s' does not exist, please download libc-database first" % path)
+            raise AttributeError("'%r' does not exist, please download libc-database first" % path)
 
         return path
 
     @property
-    def mask(self):
+    def mask(self) -> int:
         return (1 << self.bits) - 1
 
     @_validator
-    def os(self, os):
+    def os(self, os: str) -> str:
         r"""
         Operating system of the target machine.
 
@@ -1200,14 +1210,14 @@ class ContextType:
         return os
 
     @_validator
-    def randomize(self, r):
+    def randomize(self, r: bool) -> bool:
         """
         Global flag that lots of things should be randomized.
         """
         return bool(r)
 
     @_validator
-    def signed(self, signed):
+    def signed(self, signed: str | bool | object) -> bool:
         """
         Signed-ness for packing operation when it's not explicitly set.
 
@@ -1233,8 +1243,11 @@ class ContextType:
             ...
             AttributeError: signed must be one of ['no', 'signed', 'unsigned', 'yes'] or a non-string truthy value
         """
-        try:             signed = self.signednesses[signed]
-        except KeyError: pass
+        try:
+            if isinstance(signed, str):
+                signed = self.signednesses[signed]
+        except KeyError:
+            pass
 
         if isinstance(signed, str):
             raise AttributeError('signed must be one of %r or a non-string truthy value' % sorted(self.signednesses))
@@ -1242,7 +1255,7 @@ class ContextType:
         return bool(signed)
 
     @_validator
-    def timeout(self, value=Timeout.default):
+    def timeout(self, value: TimeoutValue = Timeout.default) -> float:
         """
         Default amount of time to wait for a blocking operation before it times out,
         specified in seconds.
@@ -1255,7 +1268,7 @@ class ContextType:
         return Timeout(value).timeout
 
     @_validator
-    def terminal(self, value):
+    def terminal(self, value: str | Iterable[str]) -> list[str]:
         """
         Default terminal used by :meth:`pwnlib.util.misc.run_in_new_terminal`.
         Can be a string or an iterable of strings.  In the latter case the first
@@ -1269,14 +1282,14 @@ class ContextType:
         """
         if isinstance(value, (bytes, str)):
             return [value]
-        return value
+        return list(value)
 
     @property
     def abi(self):
         return self._abi
 
     @_validator
-    def proxy(self, proxy):
+    def proxy(self, proxy: str | tuple[Any, ...] | None) -> str | tuple[Any, ...] | None:
         """
         Default proxy for all socket connections.
 
@@ -1295,7 +1308,7 @@ class ContextType:
         """
 
         if not proxy:
-            socket.socket = _original_socket
+            setattr(socket, 'socket', _original_socket)
             return None
 
         if isinstance(proxy, str):
@@ -1305,12 +1318,12 @@ class ContextType:
             raise AttributeError('proxy must be a string hostname, or tuple of arguments for socks.set_default_proxy')
 
         socks.set_default_proxy(*proxy)
-        socket.socket = socks.socksocket
+        setattr(socket, 'socket', socks.socksocket)
 
         return proxy
 
     @_validator
-    def noptrace(self, value):
+    def noptrace(self, value: bool) -> bool:
         """Disable all actions which rely on ptrace.
 
         This is useful for switching between local exploitation with a debugger,
@@ -1322,7 +1335,7 @@ class ContextType:
 
 
     @_validator
-    def adb_host(self, value):
+    def adb_host(self, value: str) -> str:
         """Sets the target host which is used for ADB.
 
         This is useful for Android exploitation.
@@ -1334,7 +1347,7 @@ class ContextType:
 
 
     @_validator
-    def adb_port(self, value):
+    def adb_port(self, value: int) -> int:
         """Sets the target port which is used for ADB.
 
         This is useful for Android exploitation.
@@ -1345,10 +1358,10 @@ class ContextType:
         return int(value)
 
     @_validator
-    def device(self, device):
+    def device(self, device: str | Device | None) -> Device | None:
         """Sets the device being operated on.
         """
-        if isinstance(device, (bytes, str)):
+        if isinstance(device, str):
             device = Device(device)
         if isinstance(device, Device):
             self.arch = device.arch or self.arch
@@ -1361,7 +1374,7 @@ class ContextType:
         return device
 
     @property
-    def adb(self):
+    def adb(self) -> list[str]:
         """Returns an argument array for connecting to adb.
 
         Unless ``$ADB_PATH`` is set, uses the default ``adb`` binary in ``$PATH``.
@@ -1382,7 +1395,7 @@ class ContextType:
         return command
 
     @_validator
-    def buffer_size(self, size):
+    def buffer_size(self, size: int) -> int:
         """Internal buffer size to use for :class:`pwnlib.tubes.tube.tube` objects.
 
         This is not the maximum size of the buffer, but this is the amount of data
@@ -1391,7 +1404,7 @@ class ContextType:
         return int(size)
 
     @_validator
-    def cache_dir_base(self, new_base):
+    def cache_dir_base(self, new_base: StrOrBytesPath) -> StrOrBytesPath:
         """Base directory to use for caching content.
 
         Changing this to a different value will clear the :attr:`cache_dir` path
@@ -1406,7 +1419,7 @@ class ContextType:
         return new_base
 
     @property
-    def cache_dir(self):
+    def cache_dir(self) -> str | None:
         """Directory used for caching data.
 
         Note:
@@ -1476,7 +1489,7 @@ class ContextType:
             return None
 
     @cache_dir.setter
-    def cache_dir(self, v):
+    def cache_dir(self, v: bool | StrOrBytesPath | None) -> None:
         if v is True:
             del self._tls["cache_dir"]
         elif v is None or os.access(v, os.W_OK):
@@ -1484,7 +1497,7 @@ class ContextType:
             self._tls["cache_dir"] = v
 
     @_validator
-    def delete_corefiles(self, v):
+    def delete_corefiles(self, v: bool) -> bool:
         """Whether pwntools automatically deletes corefiles after exiting.
         This only affects corefiles accessed via :attr:`.process.corefile`.
 
@@ -1493,7 +1506,7 @@ class ContextType:
         return bool(v)
 
     @_validator
-    def disable_corefiles(self, v):
+    def disable_corefiles(self, v: bool) -> bool:
         """Whether pwntools automatically disable corefiles generation.
 
         When enabled, sets RLIMIT_CORE to (0,-1) to prevent core dump creation
@@ -1505,7 +1518,7 @@ class ContextType:
         return bool(v)
 
     @_validator
-    def rename_corefiles(self, v):
+    def rename_corefiles(self, v: bool) -> bool:
         """Whether pwntools automatically renames corefiles.
 
         This is useful for two things:
@@ -1522,7 +1535,7 @@ class ContextType:
         return bool(v)
 
     @_validator
-    def newline(self, v):
+    def newline(self, v: ASCIIStr) -> builtins.bytes:
         """Line ending used for Tubes by default.
 
         This configures the newline emitted by e.g. ``sendline`` or that is used
@@ -1533,7 +1546,7 @@ class ContextType:
         return _need_bytes(v)
 
     @_validator
-    def throw_eof_on_incomplete_line(self, v):
+    def throw_eof_on_incomplete_line(self, v: bool | None) -> bool | None:
         """Whether to raise an :class:`EOFError` if an EOF is received before a newline in ``tube.recvline``.
 
         Controls if an :class:`EOFError` is treated as newline in ``tube.recvline`` and similar functions
@@ -1553,7 +1566,7 @@ class ContextType:
 
 
     @_validator
-    def gdbinit(self, value):
+    def gdbinit(self, value: StrOrBytesPath) -> str:
         """Path to the gdbinit that is used when running GDB locally.
 
         This is useful if you want pwntools-launched GDB to include some additional modules,
@@ -1569,7 +1582,7 @@ class ContextType:
         return str(value)
 
     @_validator
-    def gdb_binary(self, value):
+    def gdb_binary(self, value: StrOrBytesPath) -> str:
         """Path to the binary that is used when running GDB locally.
 
         This is useful when you have multiple versions of gdb installed or the gdb binary is
@@ -1583,7 +1596,7 @@ class ContextType:
         return str(value)
 
     @_validator
-    def windbg_binary(self, value):
+    def windbg_binary(self, value: StrOrBytesPath) -> str:
         r"""Path to the binary that is used when running WinDbg locally.
 
         This is useful when you have multiple versions of WinDbg installed or the WinDbg binary is
@@ -1600,7 +1613,7 @@ class ContextType:
         return str(value)
 
     @_validator
-    def windbgx_binary(self, value):
+    def windbgx_binary(self, value: StrOrBytesPath) -> str:
         r"""Path to the binary that is used when running WinDbgX locally.
 
         This is useful when you have multiple versions of WinDbgX installed or the WinDbgX binary is
@@ -1616,7 +1629,7 @@ class ContextType:
         return str(value)
 
     @_validator
-    def x64dbg_binary(self, value):
+    def x64dbg_binary(self, value: StrOrBytesPath) -> str:
         r"""Path to the binary that is used when running x64dbg locally.
 
         Should be set to the x96dbg.exe launcher binary to handle 32-bit and 64-bit binaries.
@@ -1632,7 +1645,7 @@ class ContextType:
         return str(value)
 
     @_validator
-    def debugger(self, value):
+    def debugger(self, value: str) -> str:
         """Type of debugger to use when running locally.
 
         Possible values are:
@@ -1655,7 +1668,7 @@ class ContextType:
         return str(value)
 
     @_validator
-    def cyclic_alphabet(self, alphabet):
+    def cyclic_alphabet(self, alphabet: ASCIIStr) -> builtins.bytes:
         """Cyclic alphabet.
 
         Default value is `string.ascii_lowercase`.
@@ -1665,10 +1678,12 @@ class ContextType:
         if len(set(alphabet)) != len(alphabet):
             raise AttributeError("cyclic alphabet cannot contain duplicates")
 
-        return alphabet.encode()
+        # circular imports
+        from pwnlib.util.packing import _need_bytes
+        return _need_bytes(alphabet, 2, 0x80)
 
     @_validator
-    def cyclic_size(self, size):
+    def cyclic_size(self, size: int) -> int:
         """Cyclic pattern size.
 
         Default value is `4`.
@@ -1681,7 +1696,7 @@ class ContextType:
         return size
 
     @_validator
-    def ssh_session(self, shell):
+    def ssh_session(self, shell: ssh) -> ssh:
         from pwnlib.tubes.ssh import ssh
 
         if not isinstance(shell, ssh):
@@ -1698,20 +1713,20 @@ class ContextType:
     #
     #*************************************************************************
 
-    def __call__(self, **kwargs):
+    def __call__(self, **kwargs: Any) -> None:
         """
         Alias for :meth:`pwnlib.context.ContextType.update`
         """
-        return self.update(**kwargs)
+        self.update(**kwargs)
 
-    def reset_local(self):
+    def reset_local(self) -> None:
         """
         Deprecated.  Use :meth:`clear`.
         """
         self.clear()
 
     @property
-    def endianness(self):
+    def endianness(self) -> Literal['little', 'big']:
         """
         Legacy alias for :attr:`endian`.
 
@@ -1722,42 +1737,42 @@ class ContextType:
         """
         return self.endian
     @endianness.setter
-    def endianness(self, value):
+    def endianness(self, value: str) -> None:
         self.endian = value
 
 
     @property
-    def sign(self):
+    def sign(self) -> bool:
         """
         Alias for :attr:`signed`
         """
         return self.signed
 
     @sign.setter
-    def sign(self, value):
+    def sign(self, value: str | bool) -> None:
         self.signed = value
 
     @property
-    def signedness(self):
+    def signedness(self) -> bool:
         """
         Alias for :attr:`signed`
         """
         return self.signed
 
     @signedness.setter
-    def signedness(self, value):
+    def signedness(self, value: str | bool) -> None:
         self.signed = value
 
 
     @property
-    def word_size(self):
+    def word_size(self) -> int:
         """
         Alias for :attr:`bits`
         """
         return self.bits
 
     @word_size.setter
-    def word_size(self, value):
+    def word_size(self, value: int) -> None:
         self.bits = value
 
     Thread = Thread
@@ -1782,7 +1797,10 @@ if 'ANDROID_ADB_SERVER_HOST' in os.environ:
 if 'ANDROID_ADB_SERVER_PORT' in os.environ:
     context.adb_port = int(os.environ.get('ANDROID_ADB_SERVER_PORT', 5037))
 
-def LocalContext(function):
+# FIXME: Cannot add keyword parameters to the wrapped function yet.
+# Have to wait for a follow up to PEP 612.
+# https://peps.python.org/pep-0612/#concatenating-keyword-parameters
+def LocalContext(function: Callable[_P, _R]) -> Callable[_P, _R]:
     """
     Wraps the specified function on a context.local() block, using kwargs.
 
@@ -1798,7 +1816,7 @@ def LocalContext(function):
         arm
     """
     @functools.wraps(function)
-    def setter(*a, **kw):
+    def setter(*a: _P.args, **kw: _P.kwargs) -> _R:
         with context.local(**{k:kw.pop(k) for k,v in tuple(kw.items()) if isinstance(getattr(ContextType, k, None), property)}):
             arch = context.arch
             bits = context.bits
@@ -1816,7 +1834,7 @@ def LocalContext(function):
             return function(*a, **kw)
     return setter
 
-def LocalNoarchContext(function):
+def LocalNoarchContext(function: Callable[_P, _R]) -> Callable[_P, _R]:
     """
     Same as LocalContext, but resets arch to :const:`'none'` by default
 
@@ -1829,14 +1847,14 @@ def LocalNoarchContext(function):
         none
     """
     @functools.wraps(function)
-    def setter(*a, **kw):
+    def setter(*a: _P.args, **kw: _P.kwargs) -> _R:
         kw.setdefault('arch', 'none')
         with context.local(**{k:kw.pop(k) for k,v in tuple(kw.items()) if isinstance(getattr(ContextType, k, None), property)}):
             return function(*a, **kw)
     return setter
 
 # Read configuration options from the context section
-def update_context_defaults(section):
+def update_context_defaults(section: dict[str, Any]) -> None:
     # Circular imports FTW!
     from pwnlib.util import safeeval
     from pwnlib.log import getLogger
