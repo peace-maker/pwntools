@@ -1,3 +1,4 @@
+from __future__ import annotations
 import abc
 import logging
 import os
@@ -7,12 +8,14 @@ import subprocess
 import sys
 import threading
 import time
+from typing import Any, Callable, Iterable, Literal, overload
 
 from pwnlib import atexit
 from pwnlib import term
 from pwnlib.context import context
+from pwnlib.internal.typing import ASCIIStr, BytesLike
 from pwnlib.log import Logger
-from pwnlib.timeout import Timeout
+from pwnlib.timeout import Timeout, TimeoutValue
 from pwnlib.tubes.buffer import Buffer
 from pwnlib.util import fiddling
 from pwnlib.util import iters
@@ -28,7 +31,7 @@ class tube(Timeout, Logger):
     default = Timeout.default
     forever = Timeout.forever
 
-    def __init__(self, timeout = default, level = None, *a, **kw):
+    def __init__(self, timeout: TimeoutValue = default, level: int | str | None = None, *a: Any, **kw: Any) -> None:
         super(tube, self).__init__(timeout)
 
         Logger.__init__(self, None)
@@ -36,10 +39,10 @@ class tube(Timeout, Logger):
             self.setLevel(level)
 
         self.buffer = Buffer(*a, **kw)
-        self._newline = None
+        self._newline: bytes | None = None
         atexit.register(self.close)
 
-    def _normalize_keepends_drop(self, keepends, drop, drop_default):
+    def _normalize_keepends_drop(self, keepends: bool | None, drop: bool | None, drop_default: bool) -> bool:
         '''
         >>> t = tube()
         >>> t._normalize_keepends_drop(None, None, True)
@@ -78,7 +81,7 @@ class tube(Timeout, Logger):
         return not keepends
 
     @property
-    def newline(self):
+    def newline(self) -> bytes:
         r'''Character sent with methods like sendline() or used for recvline().
 
             >>> t = tube()
@@ -100,11 +103,11 @@ class tube(Timeout, Logger):
         return context.newline
 
     @newline.setter
-    def newline(self, newline):
+    def newline(self, newline: bytes) -> None:
         self._newline = packing._need_bytes(newline)
 
     # Functions based on functions from subclasses
-    def recv(self, numb = None, timeout = default):
+    def recv(self, numb: int | None = None, timeout: TimeoutValue = default) -> bytes:
         r"""recv(numb = 4096, timeout = default) -> bytes
 
         Receives up to `numb` bytes of data from the tube, and returns
@@ -138,7 +141,7 @@ class tube(Timeout, Logger):
         numb = self.buffer.get_fill_size(numb)
         return self._recv(numb, timeout) or b''
 
-    def unrecv(self, data):
+    def unrecv(self, data: bytes) -> None:
         """unrecv(data)
 
         Puts the specified data back at the beginning of the receive
@@ -161,7 +164,7 @@ class tube(Timeout, Logger):
         data = packing._need_bytes(data)
         self.buffer.unget(data)
 
-    def _fillbuffer(self, timeout = default):
+    def _fillbuffer(self, timeout: TimeoutValue = default) -> bytes:
         """_fillbuffer(timeout = default)
 
         Fills the internal buffer from the pipe, by calling
@@ -196,7 +199,7 @@ class tube(Timeout, Logger):
         return data
 
 
-    def _recv(self, numb = None, timeout = default):
+    def _recv(self, numb: int | None = None, timeout: TimeoutValue = default) -> bytes:
         """_recv(numb = 4096, timeout = default) -> str
 
         Receives one chunk of from the internal buffer or from the OS if the
@@ -211,14 +214,14 @@ class tube(Timeout, Logger):
 
         return self.buffer.get(numb)
 
-    def recvpred(self, pred, timeout = default):
+    def recvpred(self, pred: Callable[[bytes], Any], timeout: TimeoutValue = default) -> bytes:
         """recvpred(pred, timeout = default) -> bytes
 
         Receives one byte at a time from the tube, until ``pred(all_bytes)``
         evaluates to True.
 
         If the request is not satisfied before ``timeout`` seconds pass,
-        all data is buffered and an empty string (``''``) is returned.
+        all data is buffered and an empty string (``b''``) is returned.
 
         Arguments:
             pred(callable): Function to call, with the currently-accumulated data.
@@ -229,7 +232,7 @@ class tube(Timeout, Logger):
 
         Returns:
             A bytes object containing bytes received from the socket,
-            or ``''`` if a timeout occurred while waiting.
+            or ``b''`` if a timeout occurred while waiting.
 
         Examples:
 
@@ -265,20 +268,20 @@ class tube(Timeout, Logger):
 
         return data
 
-    def recvn(self, numb, timeout = default):
+    def recvn(self, numb: int, timeout: TimeoutValue = default) -> bytes:
         """recvn(numb, timeout = default) -> bytes
 
         Receives exactly `n` bytes.
 
         If the request is not satisfied before ``timeout`` seconds pass,
-        all data is buffered and an empty string (``''``) is returned.
+        all data is buffered and an empty string (``b''``) is returned.
 
         Raises:
             exceptions.EOFError: The connection closed before the request could be satisfied
 
         Returns:
             A string containing bytes received from the socket,
-            or ``''`` if a timeout occurred while waiting.
+            or ``b''`` if a timeout occurred while waiting.
 
         Examples:
 
@@ -311,13 +314,13 @@ class tube(Timeout, Logger):
 
         return self.buffer.get(numb)
 
-    def recvuntil(self, delims, drop=False, timeout=default):
+    def recvuntil(self, delims: ASCIIStr | Iterable[ASCIIStr], drop: bool = False, timeout: TimeoutValue = default) -> bytes:
         """recvuntil(delims, drop=False, timeout=default) -> bytes
 
         Receive data until one of `delims` is encountered.
 
         If the request is not satisfied before ``timeout`` seconds pass,
-        all data is buffered and an empty string (``''``) is returned.
+        all data is buffered and an empty string (``b''``) is returned.
 
         arguments:
             delims(bytes,tuple): Byte-string of delimiters characters, or list of delimiter byte-strings.
@@ -327,8 +330,8 @@ class tube(Timeout, Logger):
             exceptions.EOFError: The connection closed before the request could be satisfied
 
         Returns:
-            A string containing bytes received from the socket,
-            or ``''`` if a timeout occurred while waiting.
+            A bytestring containing bytes received from the socket,
+            or ``b''`` if a timeout occurred while waiting.
 
         Examples:
 
@@ -356,7 +359,7 @@ class tube(Timeout, Logger):
             b'Hello'
 
         """
-        # Convert string into singleton tupple
+        # Convert string into singleton tuple
         if isinstance(delims, (bytes, bytearray, str)):
             delims = (delims,)
         delims = tuple(map(packing._need_bytes, delims))
@@ -365,7 +368,7 @@ class tube(Timeout, Logger):
         longest = max(map(len, delims))
 
         # Cumulative data to search
-        data = []
+        data: list[bytes] = []
         top = b''
 
         with self.countdown(timeout):
@@ -401,7 +404,7 @@ class tube(Timeout, Logger):
 
         return b''
 
-    def recvlines(self, numlines=2**20, keepends=None, drop=None, timeout=default):
+    def recvlines(self, numlines: int = 2**20, keepends: bool | None = None, drop: bool | None = None, timeout: TimeoutValue = default) -> list[bytes]:
         r"""recvlines(numlines, drop=True, timeout=default) -> list of bytes objects
 
         Receive up to ``numlines`` lines.
@@ -410,7 +413,7 @@ class tube(Timeout, Logger):
         set by :attr:`newline`, which defaults to ``'\n'``.
 
         If the request is not satisfied before ``timeout`` seconds pass,
-        all data is buffered and an empty string (``''``) is returned.
+        all data is buffered and an empty bytestring (``b''``) is returned.
 
         Arguments:
             numlines(int): Maximum number of lines to receive
@@ -421,8 +424,8 @@ class tube(Timeout, Logger):
             exceptions.EOFError: The connection closed before the request could be satisfied
 
         Returns:
-            A string containing bytes received from the socket,
-            or ``''`` if a timeout occurred while waiting.
+            A bytestring containing bytes received from the socket,
+            or ``b''`` if a timeout occurred while waiting.
 
         Examples:
 
@@ -441,7 +444,7 @@ class tube(Timeout, Logger):
         drop = self._normalize_keepends_drop(keepends, drop, True)
         del keepends
 
-        lines = []
+        lines: list[bytes] = []
         with self.countdown(timeout):
             for _ in range(numlines):
                 try:
@@ -463,7 +466,7 @@ class tube(Timeout, Logger):
 
         return lines
 
-    def recvlinesS(self, numlines=2**20, keepends=None, drop=None, timeout=default):
+    def recvlinesS(self, numlines: int = 2**20, keepends: bool | None = None, drop: bool | None = None, timeout: TimeoutValue = default) -> list[str]:
         r"""recvlinesS(numlines, drop=True, timeout=default) -> str list
 
         This function is identical to :meth:`recvlines`, but decodes
@@ -482,7 +485,7 @@ class tube(Timeout, Logger):
         """
         return [packing._decode(x) for x in self.recvlines(numlines, keepends=keepends, drop=drop, timeout=timeout)]
 
-    def recvlinesb(self, numlines=2**20, keepends=None, drop=None, timeout=default):
+    def recvlinesb(self, numlines: int = 2**20, keepends: bool | None = None, drop: bool | None = None, timeout: TimeoutValue = default) -> list[bytearray]:
         r"""recvlinesb(numlines, drop=True, timeout=default) -> bytearray list
 
         This function is identical to :meth:`recvlines`, but returns a bytearray.
@@ -499,7 +502,7 @@ class tube(Timeout, Logger):
         """
         return [bytearray(x) for x in self.recvlines(numlines, keepends=keepends, drop=drop, timeout=timeout)]
 
-    def recvline(self, keepends=None, drop=None, timeout=default):
+    def recvline(self, keepends: bool | None = None, drop: bool | None = None, timeout: TimeoutValue = default) -> bytes:
         r"""recvline(drop=False, timeout=default) -> bytes
 
         Receive a single line from the tube.
@@ -525,7 +528,7 @@ class tube(Timeout, Logger):
 
         Return:
             All bytes received over the tube until the first
-            newline ``'\n'`` is received.  Optionally retains
+            newline ``b'\n'`` is received.  Optionally retains
             the ending. If the connection is closed before a newline
             is received, the remaining data received up to this point
             is returned.
@@ -573,14 +576,14 @@ class tube(Timeout, Logger):
                 return self.buffer.get()
             raise
 
-    def recvline_pred(self, pred, keepends=None, drop=None, timeout=default):
+    def recvline_pred(self, pred: Callable[[bytes], Any], keepends: bool | None =None, drop: bool | None = None, timeout: TimeoutValue = default) -> bytes:
         r"""recvline_pred(pred, drop=True, timeout=default) -> bytes
 
         Receive data until ``pred(line)`` returns a truthy value.
         Drop all other data.
 
         If the request is not satisfied before ``timeout`` seconds pass,
-        all data is buffered and an empty string (``''``) is returned.
+        all data is buffered and an empty bytestring (``b''``) is returned.
 
         Arguments:
             pred(callable): Function to call.  Returns the line for which
@@ -626,7 +629,7 @@ class tube(Timeout, Logger):
 
         return b''
 
-    def recvline_contains(self, items, keepends=None, drop=None, timeout=default):
+    def recvline_contains(self, items: ASCIIStr | Iterable[ASCIIStr], keepends: bool | None = None, drop: bool | None = None, timeout: TimeoutValue = default) -> bytes:
         r"""recvline_contains(items, drop=True, timeout=default) -> bytes
 
         Receive lines until one line is found which contains at least
@@ -657,19 +660,19 @@ class tube(Timeout, Logger):
             items = (items,)
         items = tuple(map(packing._need_bytes, items))
 
-        def pred(line):
+        def pred(line: bytes) -> bool:
             return any(d in line for d in items)
 
         return self.recvline_pred(pred, keepends=keepends, drop=drop, timeout=timeout)
 
-    def recvline_startswith(self, delims, keepends=None, drop=None, timeout=default):
+    def recvline_startswith(self, delims: ASCIIStr | Iterable[ASCIIStr], keepends: bool | None = None, drop: bool | None = None, timeout: TimeoutValue = default) -> bytes:
         r"""recvline_startswith(delims, drop=True, timeout=default) -> bytes
 
         Keep receiving lines until one is found that starts with one of
         `delims`.  Returns the last line received.
 
         If the request is not satisfied before ``timeout`` seconds pass,
-        all data is buffered and an empty string (``''``) is returned.
+        all data is buffered and an empty bytestring (``b''``) is returned.
 
         Arguments:
             delims(str,tuple): List of strings to search for, or string of single characters
@@ -700,14 +703,14 @@ class tube(Timeout, Logger):
                                   drop=drop,
                                   timeout=timeout)
 
-    def recvline_endswith(self, delims, keepends=None, drop=None, timeout=default):
+    def recvline_endswith(self, delims: ASCIIStr | Iterable[ASCIIStr], keepends: bool | None = None, drop: bool | None = None, timeout: TimeoutValue = default) -> bytes:
         r"""recvline_endswith(delims, drop=True, timeout=default) -> bytes
 
         Keep receiving lines until one is found that ends with one of
         `delims`.  Returns the last line received.
 
         If the request is not satisfied before ``timeout`` seconds pass,
-        all data is buffered and an empty string (``''``) is returned.
+        all data is buffered and an empty bytestring (``b''``) is returned.
 
         See :meth:`recvline_startswith` for more details.
 
@@ -732,8 +735,11 @@ class tube(Timeout, Logger):
                                   keepends=keepends,
                                   drop=drop,
                                   timeout=timeout)
-
-    def recvregex(self, regex, exact=False, timeout=default, capture=False):
+    @overload
+    def recvregex(self, regex: ASCIIStr | re.Pattern[bytes], exact: bool = False, timeout: TimeoutValue = default, capture: Literal[False] = False) -> bytes: ...
+    @overload
+    def recvregex(self, regex: ASCIIStr | re.Pattern[bytes], exact: bool = False, timeout: TimeoutValue = default, capture: Literal[True] = True) -> re.Match[bytes] | None: ...
+    def recvregex(self, regex: ASCIIStr | re.Pattern[bytes], exact: bool = False, timeout: TimeoutValue = default, capture: bool = False) -> bytes | re.Match[bytes] | None:
         r"""recvregex(regex, exact=False, timeout=default, capture=False) -> bytes
 
         Wrapper around :func:`recvpred`, which will return when a regex
@@ -746,7 +752,7 @@ class tube(Timeout, Logger):
         set to True, then :func:`re.RegexObject.match` will be used instead.
 
         If the request is not satisfied before ``timeout`` seconds pass,
-        all data is buffered and an empty string (``''``) is returned.
+        all data is buffered and an empty bytestring (``b''``) is returned.
 
         Examples:
 
@@ -773,7 +779,7 @@ class tube(Timeout, Logger):
         else:
             return self.recvpred(pred, timeout = timeout)
 
-    def recvline_regex(self, regex, exact=False, keepends=None, drop=None, timeout=default):
+    def recvline_regex(self, regex: ASCIIStr | re.Pattern[bytes], exact: bool = False, keepends: bool | None = None, drop: bool | None = None, timeout: TimeoutValue = default) -> bytes:
         """recvline_regex(regex, exact=False, drop=True, timeout=default) -> bytes
 
         Wrapper around :func:`recvline_pred`, which will return when a regex
@@ -783,7 +789,7 @@ class tube(Timeout, Logger):
         set to True, then :func:`re.RegexObject.match` will be used instead.
 
         If the request is not satisfied before ``timeout`` seconds pass,
-        all data is buffered and an empty string (``''``) is returned.
+        all data is buffered and an empty bytestring (``b''``) is returned.
         """
 
         if isinstance(regex, (bytes, bytearray, str)):
@@ -797,7 +803,7 @@ class tube(Timeout, Logger):
 
         return self.recvline_pred(pred, keepends=keepends, drop=drop, timeout=timeout)
 
-    def recvrepeat(self, timeout=default):
+    def recvrepeat(self, timeout: TimeoutValue = default) -> bytes:
         """recvrepeat(timeout=default) -> bytes
 
         Receives data until a timeout or EOF is reached.
@@ -829,7 +835,7 @@ class tube(Timeout, Logger):
 
         return self.buffer.get()
 
-    def recvall(self, timeout=Timeout.forever):
+    def recvall(self, timeout: TimeoutValue = Timeout.forever) -> bytes:
         """recvall(timeout=Timeout.forever) -> bytes
 
         Receives data until EOF is reached and closes the tube.
@@ -851,7 +857,7 @@ class tube(Timeout, Logger):
 
         return self.buffer.get()
 
-    def send(self, data):
+    def send(self, data: ASCIIStr) -> None:
         """send(data)
 
         Sends data.
@@ -879,7 +885,7 @@ class tube(Timeout, Logger):
 
         self.send_raw(data)
 
-    def sendline(self, line=b''):
+    def sendline(self, line: ASCIIStr = b'') -> None:
         r"""sendline(data)
 
         Shorthand for ``t.send(data + t.newline)``.
@@ -900,15 +906,18 @@ class tube(Timeout, Logger):
 
         self.send(line + self.newline)
 
-    def sendlines(self, lines=[]):
+    def sendlines(self, lines: Iterable[ASCIIStr] = []) -> None:
         for line in lines:
             line = packing._need_bytes(line)
             self.sendline(line)
 
-    def sendafter(self, delim, data, timeout = default):
+    def sendafter(self, delim: ASCIIStr | Iterable[ASCIIStr], data: ASCIIStr, timeout: TimeoutValue = default) -> bytes:
         """sendafter(delim, data, timeout = default) -> str
 
         A combination of ``recvuntil(delim, timeout=timeout)`` and ``send(data)``.
+
+        Returns the data received from ``recvuntil``. If the request is not satisfied before ``timeout`` seconds pass,
+        the data is sent and an empty bytestring (``b''``) is returned.
         """
 
         data = packing._need_bytes(data)
@@ -916,17 +925,21 @@ class tube(Timeout, Logger):
         self.send(data)
         return res
 
-    def sendlineafter(self, delim, data, timeout = default):
+    def sendlineafter(self, delim: ASCIIStr | Iterable[ASCIIStr], data: ASCIIStr, timeout: TimeoutValue = default) -> bytes:
         """sendlineafter(delim, data, timeout = default) -> str
 
-        A combination of ``recvuntil(delim, timeout=timeout)`` and ``sendline(data)``."""
+        A combination of ``recvuntil(delim, timeout=timeout)`` and ``sendline(data)``.
+        
+        Returns the data received from ``recvuntil``. If the request is not satisfied before ``timeout`` seconds pass,
+        the data is sent and an empty bytestring (``b''``) is returned.
+        """
 
         data = packing._need_bytes(data)
         res = self.recvuntil(delim, timeout=timeout)
         self.sendline(data)
         return res
 
-    def sendthen(self, delim, data, timeout = default):
+    def sendthen(self, delim: ASCIIStr | Iterable[ASCIIStr], data: ASCIIStr, timeout: TimeoutValue = default) -> bytes:
         """sendthen(delim, data, timeout = default) -> str
 
         A combination of ``send(data)`` and ``recvuntil(delim, timeout=timeout)``."""
@@ -935,7 +948,7 @@ class tube(Timeout, Logger):
         self.send(data)
         return self.recvuntil(delim, timeout=timeout)
 
-    def sendlinethen(self, delim, data, timeout = default):
+    def sendlinethen(self, delim: ASCIIStr | Iterable[ASCIIStr], data: ASCIIStr, timeout: TimeoutValue = default) -> bytes:
         """sendlinethen(delim, data, timeout = default) -> str
 
         A combination of ``sendline(data)`` and ``recvuntil(delim, timeout=timeout)``."""
@@ -944,7 +957,7 @@ class tube(Timeout, Logger):
         self.sendline(data)
         return self.recvuntil(delim, timeout=timeout)
 
-    def interactive(self, prompt = term.text.bold_red('$') + ' '):
+    def interactive(self, prompt: str = term.text.bold_red('$') + ' ') -> None:
         """interactive(prompt = pwnlib.term.text.bold_red('$') + ' ')
 
         Does simultaneous reading and writing to the tube. In principle this just
@@ -989,6 +1002,8 @@ class tube(Timeout, Logger):
                 else:
                     stdin = getattr(sys.stdin, 'buffer', sys.stdin)
                     data = stdin.read(1)
+                    if not isinstance(data, bytes):
+                        self.error('stdin.read() did not return bytes, but %s' % type(data))
                     # Keep OS's line separator if NOTERM is set and
                     # the user did not specify a custom newline
                     # even if stdin is a tty.
@@ -1031,7 +1046,7 @@ class tube(Timeout, Logger):
         while t.is_alive():
             t.join(timeout = 0.1)
 
-    def stream(self, line_mode=True):
+    def stream(self, line_mode: bool = True) -> bytes:
         """stream()
 
         Receive data until the tube exits, and print it to stdout.
@@ -1063,7 +1078,7 @@ class tube(Timeout, Logger):
 
         return buf.get()
 
-    def clean(self, timeout = 0.05):
+    def clean(self, timeout: TimeoutValue = 0.05) -> bytes:
         """clean(timeout = 0.05)
 
         Removes all the buffered data from a tube by calling
@@ -1092,7 +1107,7 @@ class tube(Timeout, Logger):
 
         return self.recvrepeat(timeout)
 
-    def clean_and_log(self, timeout = 0.05):
+    def clean_and_log(self, timeout: TimeoutValue = 0.05) -> bytes:
         r"""clean_and_log(timeout = 0.05)
 
         Works exactly as :meth:`pwnlib.tubes.tube.tube.clean`, but logs received
@@ -1126,7 +1141,7 @@ class tube(Timeout, Logger):
         with context.local(log_level='debug'):
             return cached_data + self.clean(timeout)
 
-    def upload_manually(self, data, target_path = './payload', prompt = b'$', chunk_size = 0x200, chmod_flags = 'u+x', compression='auto', end_marker = 'PWNTOOLS_DONE'):
+    def upload_manually(self, data: BytesLike, target_path: str = './payload', prompt: bytes = b'$', chunk_size: int = 0x200, chmod_flags: str = 'u+x', compression: Literal['auto', 'gzip', 'xz'] = 'auto', end_marker: str = 'PWNTOOLS_DONE') -> None:
         r"""upload_manually(data, target_path = './payload', prompt = b'$', chunk_size = 0x200, chmod_flags = 'u+x', compression='auto', end_marker = 'PWNTOOLS_DONE')
 
         Upload a file manually using base64 encoding and compression.
@@ -1252,7 +1267,7 @@ class tube(Timeout, Logger):
         if not prompt:
             self.recvuntil(end_markerb + b'\n')
 
-    def connect_input(self, other):
+    def connect_input(self, other: tube) -> None:
         """connect_input(other)
 
         Connects the input of this tube to the output of another tube object.
@@ -1309,7 +1324,7 @@ class tube(Timeout, Logger):
         t.daemon = True
         t.start()
 
-    def connect_output(self, other):
+    def connect_output(self, other: tube) -> None:
         """connect_output(other)
 
         Connects the output of this tube to the input of another tube object.
@@ -1334,7 +1349,7 @@ class tube(Timeout, Logger):
 
         other.connect_input(self)
 
-    def connect_both(self, other):
+    def connect_both(self, other: tube) -> None:
         """connect_both(other)
 
         Connects the both ends of this tube object with another tube object."""
@@ -1342,20 +1357,24 @@ class tube(Timeout, Logger):
         self.connect_input(other)
         self.connect_output(other)
 
-    def spawn_process(self, *args, **kwargs):
+    def spawn_process(self, *args: Any, **kwargs: Any) -> subprocess.Popen:
         """Spawns a new process having this tube as stdin, stdout and stderr.
 
         Takes the same arguments as :class:`subprocess.Popen`."""
 
+        if 'stdin' in kwargs or 'stdout' in kwargs or 'stderr' in kwargs:
+            raise ValueError('stdin, stdout and stderr are reserved for tube.spawn_process')
+
+        kwargs['stdin'] = self.fileno()
+        kwargs['stdout'] = self.fileno()
+        kwargs['stderr'] = self.fileno()
+
         return subprocess.Popen(
             *args,
-            stdin = self.fileno(),
-            stdout = self.fileno(),
-            stderr = self.fileno(),
             **kwargs
         )
 
-    def __lshift__(self, other):
+    def __lshift__(self, other: tube) -> tube:
         """
         Shorthand for connecting multiple tubes.
 
@@ -1377,7 +1396,7 @@ class tube(Timeout, Logger):
         self.connect_input(other)
         return other
 
-    def __rshift__(self, other):
+    def __rshift__(self, other: tube) -> tube:
         """
         Inverse of the ``<<`` operator.  See :meth:`__lshift__`.
 
@@ -1386,7 +1405,7 @@ class tube(Timeout, Logger):
         self.connect_output(other)
         return other
 
-    def __ne__(self, other):
+    def __ne__(self, other: object) -> bool:
         """
         Shorthand for connecting tubes to eachother.
 
@@ -1397,9 +1416,12 @@ class tube(Timeout, Logger):
 
         See :meth:`connect_input` for more information.
         """
+        if not isinstance(other, tube):
+            return False
         self << other << self
+        return True
 
-    def wait_for_close(self, timeout=default):
+    def wait_for_close(self, timeout: TimeoutValue = default) -> None:
         """Waits until the tube is closed."""
 
         with self.countdown(timeout):
@@ -1410,7 +1432,7 @@ class tube(Timeout, Logger):
 
     wait = wait_for_close
 
-    def can_recv(self, timeout = 0):
+    def can_recv(self, timeout: TimeoutValue = 0) -> bool:
         """can_recv(timeout = 0) -> bool
 
         Returns True, if there is data available within `timeout` seconds.
@@ -1432,7 +1454,7 @@ class tube(Timeout, Logger):
 
         return bool(self.buffer or self.can_recv_raw(timeout))
 
-    def settimeout(self, timeout):
+    def settimeout(self, timeout: TimeoutValue) -> None:
         """settimeout(timeout)
 
         Set the timeout for receiving operations. If the string "default"
@@ -1463,7 +1485,7 @@ class tube(Timeout, Logger):
     connected_directions = shutdown_directions.copy()
     connected_directions['any'] = 'any'
 
-    def shutdown(self, direction = "send"):
+    def shutdown(self, direction: str = "send") -> None:
         """shutdown(direction = "send")
 
         Closes the tube for futher reading or writing depending on `direction`.
@@ -1500,7 +1522,7 @@ class tube(Timeout, Logger):
         else:
             self.shutdown_raw(self.shutdown_directions[direction])
 
-    def connected(self, direction = 'any'):
+    def connected(self, direction: str = 'any') -> bool:
         """connected(direction = 'any') -> bool
 
         Returns True if the tube is connected in the specified direction.
@@ -1556,7 +1578,7 @@ class tube(Timeout, Logger):
 
     # The minimal interface to be implemented by a child
     @abc.abstractmethod
-    def recv_raw(self, numb):
+    def recv_raw(self, numb: int) -> bytes:
         """recv_raw(numb) -> str
 
         Should not be called directly. Receives data without using the buffer
@@ -1570,7 +1592,7 @@ class tube(Timeout, Logger):
         raise EOFError('Not implemented')
 
     @abc.abstractmethod
-    def send_raw(self, data):
+    def send_raw(self, data: bytes) -> None:
         """send_raw(data)
 
         Should not be called directly. Sends data to the tube.
@@ -1581,7 +1603,7 @@ class tube(Timeout, Logger):
 
         raise EOFError('Not implemented')
 
-    def settimeout_raw(self, timeout):
+    def settimeout_raw(self, timeout: TimeoutValue) -> None:
         """settimeout_raw(timeout)
 
         Should not be called directly. Sets the timeout for
@@ -1590,7 +1612,7 @@ class tube(Timeout, Logger):
 
         raise NotImplementedError()
 
-    def timeout_change(self):
+    def timeout_change(self) -> None:
         """
         Should not be called directly. Informs the raw layer of the tube that the timeout has changed.
 
@@ -1602,7 +1624,7 @@ class tube(Timeout, Logger):
         except NotImplementedError:
             pass
 
-    def can_recv_raw(self, timeout):
+    def can_recv_raw(self, timeout: TimeoutValue) -> bool:
         """can_recv_raw(timeout) -> bool
 
         Should not be called directly. Returns True, if
@@ -1612,7 +1634,7 @@ class tube(Timeout, Logger):
 
         raise NotImplementedError()
 
-    def connected_raw(self, direction):
+    def connected_raw(self, direction: str) -> bool:
         """connected(direction = 'any') -> bool
 
         Should not be called directly.  Returns True iff the
@@ -1621,7 +1643,7 @@ class tube(Timeout, Logger):
 
         raise NotImplementedError()
 
-    def close(self):
+    def close(self) -> None:
         """close()
 
         Closes the tube.
@@ -1631,7 +1653,7 @@ class tube(Timeout, Logger):
         # raise NotImplementedError()
         # But this causes issues with the unit tests.
 
-    def fileno(self):
+    def fileno(self) -> int:
         """fileno() -> int
 
         Returns the file number used for reading.
@@ -1639,7 +1661,7 @@ class tube(Timeout, Logger):
 
         raise NotImplementedError()
 
-    def shutdown_raw(self, direction):
+    def shutdown_raw(self, direction: str) -> None:
         """shutdown_raw(direction)
 
         Should not be called directly.  Closes the tube for further reading or
