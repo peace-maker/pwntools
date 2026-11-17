@@ -113,16 +113,22 @@ jobs:
 
     - name: Install Linux dependencies
       run: |
-        sudo apt-get update
+        # The amd64v3 index does not have the binutils-mips* packages,
+        # so we force apt to use the amd64 architecture until the issue is resolved.
+        grep -RIl amd64v3 /etc/apt/apt.conf.d | while read -r file; do
+          sudo sed -i '/amd64v3/d' "$file"
+        done
+        echo 'APT::Architecture "amd64";' | sudo tee /etc/apt/apt.conf.d/99-generic-amd64
+        sudo rm -rf /var/lib/apt/lists/*
+        sudo apt-get update -o Acquire::Retries=3
         sudo apt-get install -y --no-install-recommends -o Acquire::Retries=3 \
-          ash bash-static dash ksh mksh zsh \
+          bash-static dash ksh mksh zsh \
           gdb gdbserver socat \
-          binutils-multiarch qemu-user-static \
+          binutils-multiarch qemu-user \
           binutils-aarch64-linux-gnu \
           binutils-arm-linux-gnueabihf \
           binutils-mips-linux-gnu \
           binutils-mipsel-linux-gnu \
-          binutils-msp430 \
           binutils-powerpc-linux-gnu \
           binutils-s390x-linux-gnu \
           binutils-sparc64-linux-gnu \
